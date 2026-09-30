@@ -1,4 +1,4 @@
-import { Router, type Request } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import type { AppContext } from '../context';
 import { ApiError, forbidden } from '../lib/errors';
 import { parse } from '../lib/http';
@@ -168,6 +168,12 @@ export function guestRoutes(ctx: AppContext): Router {
     const g = ordering(req);
     const sessionId = g.session.id;
     ctx.hub.subscribe(res, [channels.stay(g.stay.id)], () => guestSessionStillValid(ctx, sessionId));
+  });
+
+  // A revoked/expired session also drops its cookie, so the device is told once and starts clean.
+  r.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (err instanceof ApiError && err.code === 'session_revoked') clearGuestCookie(ctx, res);
+    next(err);
   });
 
   return r;

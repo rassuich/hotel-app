@@ -25,6 +25,8 @@ export interface PropertySummary {
   requestsEnabled: boolean;
   currency: string;
   approxLocation: { lat: number; lng: number } | null;
+  /** True while any sample/demo fixture is still configured for this property. */
+  hasDemoContent: boolean;
 }
 
 export interface ContentItem {

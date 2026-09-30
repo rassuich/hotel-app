@@ -20,6 +20,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "db:migrate": "tsx server/src/cli.ts migrate",
+    "db:setup": "tsx server/src/cli.ts setup",
     "db:seed-demo": "tsx server/src/cli.ts seed-demo",
     "db:reset-demo": "tsx server/src/cli.ts reset-demo",
     "db:backup": "tsx server/src/cli.ts backup",

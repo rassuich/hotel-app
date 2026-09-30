@@ -31,12 +31,14 @@ function requireRoom(db: DB, propertyId: string, roomId: number) {
 }
 
 /** Issues a fresh private activation token for the stay's current room revision. */
-function issueCredential(ctx: AppContext, stayId: string, revision: number): IssuedQr {
+function issueCredential(ctx: AppContext, propertyId: string, stayId: string, revision: number): IssuedQr {
   const token = randomToken(32);
   ctx.db
     .prepare('INSERT INTO activation_credentials (stay_id, token_hash, assignment_revision, created_at) VALUES (?, ?, ?, ?)')
     .run(stayId, sha256(token), revision, nowIso());
-  return { token, url: `${ctx.config.publicBaseUrl}/activate#t=${token}` };
+  // The property id (not secret) lets the page show the right verification field;
+  // the token itself travels only in the fragment, which browsers never send to servers.
+  return { token, url: `${ctx.config.publicBaseUrl}/activate?p=${encodeURIComponent(propertyId)}#t=${token}` };
 }
 
 function revokeCredentials(db: DB, stayId: string, reason: string) {
@@ -101,7 +103,7 @@ export function applyStayEvent(
            VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)`,
         ).run(id, propertyId, event.guestName, event.occupants, event.scheduledDeparture, opts.source ?? 'manual', event.externalRef ?? null, opts.isDemo ? 1 : 0, now, now);
         db.prepare('INSERT INTO room_assignments (stay_id, room_id, revision, started_at) VALUES (?, ?, 1, ?)').run(id, event.roomId, now);
-        return { stayId: id, qr: issueCredential(ctx, id, 1) };
+        return { stayId: id, qr: issueCredential(ctx, propertyId, id, 1) };
       })();
       return out;
     }
@@ -138,7 +140,7 @@ export function applyStayEvent(
         revokeCredentials(db, stay.id, 'room_moved');
         revokeSessions(db, stay.id, 'room_moved');
         flagged = flagUnfinished(db, stay.id, 'room_moved', `${current.room_label} → ${room.label}`);
-        return issueCredential(ctx, stay.id, revision);
+        return issueCredential(ctx, propertyId, stay.id, revision);
       })();
       ctx.hub.closeChannel(channels.stay(event.stayId), { type: 'session.revoked', reason: 'room_moved' });
       notifyFlagged(ctx, flagged, event.stayId);
@@ -187,7 +189,7 @@ export function rotateQr(ctx: AppContext, propertyId: string, stayId: string, op
     revokeCredentials(db, stay.id, `rotated:${opts.reason}`);
     if (opts.revokeSessions) revokeSessions(db, stay.id, `rotated:${opts.reason}`);
     db.prepare('UPDATE stays SET updated_at = ? WHERE id = ?').run(nowIso(), stay.id);
-    return issueCredential(ctx, stay.id, current.revision);
+    return issueCredential(ctx, propertyId, stay.id, current.revision);
   })();
   if (opts.revokeSessions) ctx.hub.closeChannel(channels.stay(stayId), { type: 'session.revoked', reason: 'rotated' });
   return qr;

@@ -1,6 +1,6 @@
 /**
  * Operational commands:
- *   migrate | seed-demo | reset-demo | backup [dir] | generate-vapid
+ *   migrate | setup | seed-demo | reset-demo | backup [dir] | generate-vapid
  */
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -39,6 +39,19 @@ async function main() {
       console.log(ran.length ? `Applied: ${ran.join(', ')}` : 'Database is up to date.');
       break;
     }
+    case 'setup': {
+      // Base configuration only (properties, department accounts, named tablets). No demo data.
+      const env = process.env;
+      const missing = ['SEED_ROOM_SERVICE_PASSWORD', 'SEED_RECEPTION_PASSWORD', 'SEED_ADMIN_PASSWORD'].filter((k) => (env[k] ?? '').length < 10);
+      if (missing.length) throw new Error(`Set ${missing.join(', ')} (min. 10 characters each) before running setup.`);
+      const db = openDatabase(config.dbPath);
+      migrate(db);
+      seedBase(db, demoPasswords());
+      db.close();
+      console.log('Base configuration created: 4 properties (requests enabled for palace-anfa only), Room Service / Reception / Admin accounts, 4 named tablets.');
+      console.log('Next: add rooms, pool locations, menus, services and hotel information in Admin.');
+      break;
+    }
     case 'seed-demo':
       await seed();
       break;
@@ -69,7 +82,7 @@ async function main() {
       break;
     }
     default:
-      console.log('Usage: cli.ts migrate | seed-demo | reset-demo | backup [dir] | generate-vapid');
+      console.log('Usage: cli.ts migrate | setup | seed-demo | reset-demo | backup [dir] | generate-vapid');
       process.exitCode = 1;
   }
 }

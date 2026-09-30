@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1c2837"/>
+  <rect x="56" y="56" width="400" height="400" rx="60" fill="none" stroke="#a8844d" stroke-width="10"/>
+  <text x="256" y="330" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="230" fill="#efe5d3">P</text>
+  <text x="256" y="400" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="40" letter-spacing="10" fill="#a8844d">ANFA</text>
+</svg>

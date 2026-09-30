@@ -34,6 +34,8 @@ describe('room move', () => {
     const me = await g.get('/api/guest/me');
     expect(me.status).toBe(401);
     expect(me.body.error.code).toBe('session_revoked');
+    expect(String(me.headers['set-cookie'])).toMatch(/pa_guest=;/); // cookie cleared
+    expect((await g.get('/api/guest/me')).body.error.code).toBe('not_activated');
     expect((await g.post(`/api/guest/requests/${ref}/callback`, { idempotencyKey: key() })).status).toBe(401);
     expect((await orderTea(env, g)).status).toBe(401);
 

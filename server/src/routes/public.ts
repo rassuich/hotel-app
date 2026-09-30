@@ -20,6 +20,15 @@ export function propertySummary(ctx: AppContext, p: PropertyRow): PropertySummar
     requestsEnabled: !!p.requests_enabled && ctx.config.orderingProperties.includes(p.id),
     currency: p.currency,
     approxLocation: p.approx_lat !== null && p.approx_lng !== null ? { lat: p.approx_lat, lng: p.approx_lng } : null,
+    hasDemoContent: !!ctx.db
+      .prepare(
+        `SELECT EXISTS(SELECT 1 FROM content_items WHERE property_id = @p AND is_demo = 1)
+             OR EXISTS(SELECT 1 FROM food_items WHERE property_id = @p AND is_demo = 1)
+             OR EXISTS(SELECT 1 FROM service_items WHERE property_id = @p AND is_demo = 1)
+             OR EXISTS(SELECT 1 FROM rooms WHERE property_id = @p AND is_demo = 1)`,
+      )
+      .pluck()
+      .get({ p: p.id }),
   };
 }
 
