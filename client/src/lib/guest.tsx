@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError, get, onApiError, post } from './api';
+import { ApiError, get, onApiError, patch, post } from './api';
+import { useI18n } from '../i18n';
 import { useLiveStream, type LiveStatus } from './live';
 import type { GuestMeDto } from '../../../shared/src/api';
 
@@ -69,6 +70,13 @@ export function GuestProvider({ children }: { children: ReactNode }) {
       }
     });
   }, [refresh, setRevoked]);
+
+  // Keep the session's language (used for outside-app notifications) in step with the UI.
+  const { lang } = useI18n();
+  const ordering = me?.capability === 'order';
+  useEffect(() => {
+    if (ordering) void patch('/api/guest/language', { language: lang }).catch(() => undefined);
+  }, [lang, ordering]);
 
   const streamUrl = me?.capability === 'order' ? '/api/guest/stream' : null;
   const live = useLiveStream(streamUrl, {

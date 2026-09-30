@@ -159,6 +159,13 @@ describe('private QR activation', () => {
     expect(r.headers['cache-control']).toBe('no-store');
   });
 
+  it('keeps the session language in step with the guest\'s choice (used for push text)', async () => {
+    const g = await guest(env);
+    expect((await g.patch('/api/guest/language', { language: 'es' })).status).toBe(200);
+    expect(env.ctx.db.prepare('SELECT language FROM guest_sessions').pluck().get()).toBe('es');
+    expect((await g.patch('/api/guest/language', { language: 'de' })).status).toBe(400);
+  });
+
   it('signing out revokes only that device', async () => {
     const a = await guest(env);
     const b = await guest(env);
