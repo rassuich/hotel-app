@@ -82,17 +82,19 @@ function publishChange(ctx: AppContext, r: Pick<RequestRow, 'id' | 'department_a
 
 export type DestinationInput = { kind: 'room' } | { kind: 'pool'; locationId: number };
 
+const roomLabel = (label: string) => ({ fr: `Chambre ${label}`, en: `Room ${label}`, es: `Habitación ${label}` });
+
 function resolveDestination(ctx: AppContext, g: GuestContext, input: DestinationInput): Destination {
   if (input.kind === 'room') {
     const a = currentAssignment(ctx.db, g.stay.id);
     if (!a) throw conflict('room_changed');
-    return { kind: 'room', roomId: a.room_id, label: { fr: `Chambre ${a.room_label}`, en: `Room ${a.room_label}` } };
+    return { kind: 'room', roomId: a.room_id, label: roomLabel(a.room_label) };
   }
   const loc = ctx.db
     .prepare('SELECT * FROM delivery_locations WHERE id = ? AND property_id = ? AND active = 1')
     .get(input.locationId, g.property.id) as Record<string, any> | undefined;
   if (!loc) throw badRequest('invalid_destination');
-  return { kind: 'pool', locationId: loc.id, label: { fr: loc.label_fr, en: loc.label_en } };
+  return { kind: 'pool', locationId: loc.id, label: { fr: loc.label_fr, en: loc.label_en, es: loc.label_es ?? '' } };
 }
 
 function assertCanOrder(ctx: AppContext, g: GuestContext) {
@@ -144,11 +146,11 @@ function insertRequest(
     );
   const id = Number(info.lastInsertRowid);
   const lineStmt = db.prepare(
-    `INSERT INTO request_lines (request_id, line_no, item_kind, item_id, name_fr, name_en, options_json, unit_price_minor, quantity, line_total_minor, complimentary, details)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO request_lines (request_id, line_no, item_kind, item_id, name_fr, name_en, name_es, options_json, unit_price_minor, quantity, line_total_minor, complimentary, details)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   args.quote.lines.forEach((l, i) =>
-    lineStmt.run(id, i + 1, l.itemKind, l.itemId, l.nameFr, l.nameEn, JSON.stringify(l.options), l.unitPriceMinor, l.quantity, l.lineTotalMinor, l.complimentary ? 1 : 0, l.details),
+    lineStmt.run(id, i + 1, l.itemKind, l.itemId, l.name.fr, l.name.en, l.name.es, JSON.stringify(l.options), l.unitPriceMinor, l.quantity, l.lineTotalMinor, l.complimentary ? 1 : 0, l.details),
   );
   if (args.type === 'food') {
     db.prepare(`INSERT INTO contact_attempts (request_id, attempt_no, requested_by, status, created_at) VALUES (?, 1, 'initial', 'pending', ?)`).run(id, now);
@@ -204,10 +206,10 @@ export function submitFood(
 export function submitService(
   ctx: AppContext,
   g: GuestContext,
-  body: { idempotencyKey: string; line: ServiceLineInput; destination: DestinationInput; notes?: string | null },
+  body: { idempotencyKey: string; lines: ServiceLineInput[]; destination: DestinationInput; notes?: string | null },
 ): SubmitResult {
   return submit(ctx, g, 'service', body.idempotencyKey, () => ({
-    quote: quoteService(ctx.db, g.property.id, g.property.currency, body.line),
+    quote: quoteService(ctx.db, g.property.id, g.property.currency, body.lines),
     destination: resolveDestination(ctx, g, body.destination),
     notes: body.notes?.trim() || null,
   }));
@@ -480,7 +482,7 @@ export function resolveAttention(
       const a = stay.status === 'active' ? currentAssignment(ctx.db, stay.id) : undefined;
       if (!a) throw conflict('stay_checked_out');
       if (r.destination_kind === 'room') {
-        const dest: Destination = { kind: 'room', roomId: a.room_id, label: { fr: `Chambre ${a.room_label}`, en: `Room ${a.room_label}` } };
+        const dest: Destination = { kind: 'room', roomId: a.room_id, label: roomLabel(a.room_label) };
         extra = ', current_destination = ?';
         params.push(JSON.stringify(dest));
       }
@@ -500,8 +502,11 @@ export function resolveAttention(
 function linesFor(db: DB, requestId: number): RequestLine[] {
   return (db.prepare('SELECT * FROM request_lines WHERE request_id = ? ORDER BY line_no').all(requestId) as Record<string, any>[]).map((l) => ({
     itemId: l.item_id,
-    name: { fr: l.name_fr, en: l.name_en },
-    options: JSON.parse(l.options_json),
+    name: { fr: l.name_fr, en: l.name_en, es: l.name_es ?? '' },
+    options: (JSON.parse(l.options_json) as { id: number; name: Partial<Destination['label']>; priceDeltaMinor: number }[]).map((o) => ({
+      ...o,
+      name: { fr: o.name.fr ?? '', en: o.name.en ?? '', es: o.name.es ?? '' },
+    })),
     unitPriceMinor: l.unit_price_minor,
     quantity: l.quantity,
     lineTotalMinor: l.line_total_minor,

@@ -25,8 +25,8 @@ async function seed() {
   console.log(`  Room Service  palace.roomservice / ${passwords.roomService}`);
   console.log(`  Reception     palace.reception   / ${passwords.reception}`);
   console.log(`  Admin         palace.admin       / ${passwords.admin}`);
-  console.log('\nPrivate activation links for the demo stays (shown once; rotate from Reception > Stays):');
-  for (const s of out.stays) console.log(`  ${s.guestName} — room ${s.room}\n    ${s.activationUrl}`);
+  console.log('\nPrivate activation for the demo stays (shown once; reissue from Reception > Stays & QR):');
+  for (const s of out.stays) console.log(`  ${s.guestName} — room ${s.room}\n    QR link: ${s.activationUrl}\n    Code:    ${s.code}`);
   console.log('');
 }
 

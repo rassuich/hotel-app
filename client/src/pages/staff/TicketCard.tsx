@@ -65,7 +65,7 @@ export default function TicketCard({
         <span className="meta">
           <strong id={`t-${r.id}`}>{r.ref}</strong> · {ageLabel(t, r.createdAt, now)} · {time(r.createdAt)}
         </span>
-        <span className="pill pill-info">{t(`staff.state_${r.state}`)}</span>
+        <span className="state">{t(`staff.state_${r.state}`)}</span>
       </div>
       <div className="dest">{dest}</div>
       {JSON.stringify(r.originalDestination) !== JSON.stringify(r.currentDestination) && (
@@ -73,7 +73,7 @@ export default function TicketCard({
       )}
       <div className="meta">
         {r.guestName}
-        {r.stayStatus === 'checked_out' && <span className="pill pill-bad"> {t('staff.stayCheckedOut')}</span>}
+        {r.stayStatus === 'checked_out' && <span className="state bad"> {t('staff.stayCheckedOut')}</span>}
       </div>
 
       {r.attention.flag && (
@@ -113,15 +113,15 @@ export default function TicketCard({
 
       <div className="row-start mt">
         {r.owner ? (
-          <span className={`pill ${mine ? 'pill-ok' : 'pill-warn'}`}>{t('staff.takenBy', { device: mine ? `${r.owner.name} (${t('staff.you')})` : r.owner.name })}</span>
+          <span className={`state ${mine ? 'ok' : 'warn'}`}>{t('staff.takenBy', { device: mine ? `${r.owner.name} (${t('staff.you')})` : r.owner.name })}</span>
         ) : null}
         {r.type === 'food' && r.confirmation.result === 'confirmed' && (
-          <span className={`pill ${r.pos.status === 'entered' ? 'pill-ok' : r.pos.status === 'uncertain' ? 'pill-bad' : 'pill-warn'}`}>
+          <span className={`state ${r.pos.status === 'entered' ? 'ok' : r.pos.status === 'uncertain' ? 'bad' : 'warn'}`}>
             {t(`staff.posStatus_${r.pos.status}`)}
             {r.pos.reference ? ` · ${r.pos.reference}` : ''}
           </span>
         )}
-        {r.housekeepingContactedAt && <span className="pill pill-ok">{t('staff.housekeepingDone', { time: time(r.housekeepingContactedAt) })}</span>}
+        {r.housekeepingContactedAt && <span className="state ok">{t('staff.housekeepingDone', { time: time(r.housekeepingContactedAt) })}</span>}
       </div>
 
       {error && <ErrorNotice code={error} />}
@@ -129,7 +129,7 @@ export default function TicketCard({
       {!closed && (
         <div className="actions">
           {!r.owner && r.state !== 'confirmation_not_received' && (
-            <button className="btn-gold" disabled={busy} onClick={() => act('claim')}>
+            <button className="btn-primary" disabled={busy} onClick={() => act('claim')}>
               {t('staff.take')}
             </button>
           )}

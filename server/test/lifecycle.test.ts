@@ -136,6 +136,7 @@ describe('checkout', () => {
     expect(bill.status).toBe(200);
     expect(bill.body.bill).toEqual({ status: 'unconfigured', fallback: 'contact_reception' });
     expect((await g.get('/api/guest/notices')).status).toBe(403);
+    expect((await g.get('/api/guest/catalog/menu')).status).toBe(403);
     // After the configured post-stay window the session is gone entirely.
     clock.now = () => new Date(Date.now() + (env.ctx.config.postStayAccessHours + 1) * 3600_000);
     expect((await g.get('/api/guest/bill')).status).toBe(401);

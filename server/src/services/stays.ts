@@ -1,7 +1,7 @@
 import type { AppContext } from '../context';
 import type { DB } from '../db';
 import { conflict, notFound, badRequest } from '../lib/errors';
-import { newId, randomToken, sha256 } from '../lib/crypto';
+import { newId, normalizeCode, randomCode, randomToken, sha256 } from '../lib/crypto';
 import { addHours, nowIso } from '../lib/clock';
 import { channels } from '../live/hub';
 import { currentAssignment, getStay, latestAssignment, type StayRow, type PropertyRow } from './rows';
@@ -10,6 +10,8 @@ import type { StayEvent } from '../pms/adapter';
 export interface IssuedQr {
   token: string;
   url: string;
+  /** Hand-typed alternative to the QR (same credential, revoked together). */
+  code: string;
 }
 
 const UNFINISHED = `state NOT IN ('completed', 'rejected', 'cancelled')`;
@@ -33,12 +35,13 @@ function requireRoom(db: DB, propertyId: string, roomId: number) {
 /** Issues a fresh private activation token for the stay's current room revision. */
 function issueCredential(ctx: AppContext, propertyId: string, stayId: string, revision: number): IssuedQr {
   const token = randomToken(32);
+  const code = randomCode();
   ctx.db
-    .prepare('INSERT INTO activation_credentials (stay_id, token_hash, assignment_revision, created_at) VALUES (?, ?, ?, ?)')
-    .run(stayId, sha256(token), revision, nowIso());
+    .prepare('INSERT INTO activation_credentials (stay_id, token_hash, code_hash, assignment_revision, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(stayId, sha256(token), sha256(normalizeCode(code)), revision, nowIso());
   // The property id (not secret) lets the page show the right verification field;
   // the token itself travels only in the fragment, which browsers never send to servers.
-  return { token, url: `${ctx.config.publicBaseUrl}/activate?p=${encodeURIComponent(propertyId)}#t=${token}` };
+  return { token, code, url: `${ctx.config.publicBaseUrl}/activate?p=${encodeURIComponent(propertyId)}#t=${token}` };
 }
 
 function revokeCredentials(db: DB, stayId: string, reason: string) {

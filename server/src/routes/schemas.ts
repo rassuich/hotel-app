@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const idempotencyKey = z.string().trim().min(8).max(100).regex(/^[A-Za-z0-9_-]+$/);
-export const lang = z.enum(['fr', 'en']);
+export const lang = z.enum(['fr', 'en', 'es']);
 const notes = z.string().trim().max(500).nullish();
 
 export const destination = z.discriminatedUnion('kind', [
@@ -9,12 +9,15 @@ export const destination = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('pool'), locationId: z.number().int().positive() }),
 ]);
 
-export const activateBody = z.object({
-  token: z.string().min(20).max(200),
+export const activateBody = z
+  .object({
+    token: z.string().min(20).max(200).optional(),
+    code: z.string().trim().min(4).max(40).optional(),
   room: z.string().trim().max(40).optional(),
-  name: z.string().trim().max(100).optional(),
-  language: lang.default('fr'),
-});
+    name: z.string().trim().max(100).optional(),
+    language: lang.default('fr'),
+  })
+  .refine((b) => !!b.token !== !!b.code, 'token_or_code');
 
 export const foodSubmitBody = z.object({
   idempotencyKey,
@@ -36,18 +39,24 @@ export const foodSubmitBody = z.object({
 
 export const serviceSubmitBody = z.object({
   idempotencyKey,
-  line: z.object({
-    itemId: z.number().int().positive(),
-    quantity: z.number().int().min(1).max(99),
-    details: z.string().trim().max(300).nullish(),
-    expectedUnitPriceMinor: z.number().int().min(0).optional(),
-    expectedComplimentary: z.boolean().optional(),
-  }),
+  lines: z
+    .array(
+      z.object({
+        itemId: z.number().int().positive(),
+        quantity: z.number().int().min(1).max(99),
+        details: z.string().trim().max(300).nullish(),
+        expectedUnitPriceMinor: z.number().int().min(0).optional(),
+        expectedComplimentary: z.boolean().optional(),
+      }),
+    )
+    .min(1)
+    .max(30),
   destination,
   notes,
 });
 
 export const callbackBody = z.object({ idempotencyKey });
+export const languageBody = z.object({ language: lang });
 
 export const pushSubscriptionBody = z.object({
   endpoint: z.string().url().max(1000),

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { Client, guest, orderTea, setup, type TestEnv } from './helpers';
+import { Client, guest, orderTea, reception, roomId, setup, type TestEnv } from './helpers';
 
 let env: TestEnv;
 beforeEach(async () => {
@@ -7,18 +7,31 @@ beforeEach(async () => {
 });
 afterEach(() => env.close());
 
-describe('public content', () => {
-  it('serves menus, services, content and properties without login', async () => {
+describe('guest-only access', () => {
+  it('serves no menus, services or hotel content without a validated stay', async () => {
     const c = await new Client(env.app).init();
-    const menu = await c.get('/api/public/properties/palace-anfa/menu');
-    expect(menu.status).toBe(200);
-    expect(menu.body.categories.length).toBeGreaterThan(0);
-    expect(menu.body.categories[0].items[0].isDemo).toBe(true);
-    expect((await c.get('/api/public/properties/palace-anfa/services')).body.services.length).toBeGreaterThan(0);
-    expect((await c.get('/api/public/properties/palace-anfa/content')).body.content.length).toBeGreaterThan(0);
-    const props = (await c.get('/api/public/properties')).body.properties as { id: string; requestsEnabled: boolean }[];
-    expect(props.map((p) => p.id)).toEqual(['palace-anfa', 'hotel-suisse', 'palm-plaza', 'palm-appart-club']);
-    expect(props.filter((p) => p.requestsEnabled).map((p) => p.id)).toEqual(['palace-anfa']);
+    for (const path of ['menu', 'services', 'content', 'locations', 'property']) {
+      const r = await c.get(`/api/guest/catalog/${path}`);
+      expect(r.status, path).toBe(401);
+    }
+    // The old public catalogue endpoints no longer exist.
+    for (const path of ['/api/public/properties', '/api/public/properties/palace-anfa/menu', '/api/public/properties/palace-anfa/content']) {
+      expect((await c.get(path)).status, path).toBe(404);
+    }
+    // Only the hotel's name is public (for the validation screen of a private link).
+    const p = (await c.get('/api/public/properties/palace-anfa')).body.property;
+    expect(Object.keys(p).sort()).toEqual(['activationCheck', 'city', 'id', 'name']);
+  });
+
+  it('serves the catalogue of the guest\'s own hotel, in three languages', async () => {
+    const g = await guest(env);
+    const menu = (await g.get('/api/guest/catalog/menu')).body;
+    expect(menu.categories[0].name).toEqual({ fr: 'Petit-déjeuner', en: 'Breakfast', es: 'Desayuno' });
+    expect(menu.categories[0].items[0].isDemo).toBe(true);
+    expect((await g.get('/api/guest/catalog/services')).body.services[1].name.es).toBe('Toallas');
+    expect((await g.get('/api/guest/catalog/content')).body.content.length).toBeGreaterThan(0);
+    expect((await g.get('/api/guest/catalog/locations')).body.locations[0].label.es).toMatch(/Piscina – Tumbona/);
+    expect((await g.get('/api/guest/catalog/property')).body.property).toMatchObject({ id: 'palace-anfa', requestsEnabled: true, hasDemoContent: true });
   });
 
   it('requires an activated stay for private requests and history', async () => {
@@ -34,6 +47,54 @@ describe('public content', () => {
     const r = await c.agent.post('/api/guest/activate').send({ token: env.stays[0].token, room: env.stays[0].room });
     expect(r.status).toBe(403);
     expect(r.body.error.code).toBe('csrf_failed');
+  });
+});
+
+describe('typed validation code', () => {
+  it('activates with the code plus the room number, in any case/spacing', async () => {
+    const s = env.stays[0];
+    expect(s.code).toMatch(/^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);
+    const c = await new Client(env.app).init();
+    const r = await c.post('/api/guest/activate', { code: ` ${s.code.toLowerCase().replace(/-/g, ' ')} `, room: 'demo-101', language: 'es' });
+    expect(r.status).toBe(201);
+    expect((await c.get('/api/guest/me')).body.me.roomLabel).toBe('DEMO-101');
+    expect(env.ctx.db.prepare('SELECT language FROM guest_sessions').pluck().get()).toBe('es');
+  });
+
+  it('always requires the room number with a code, and fails identically', async () => {
+    const s = env.stays[0];
+    const c = await new Client(env.app).init();
+    const bodies = [
+      { code: s.code },
+      { code: s.code, room: 'DEMO-102' },
+      { code: 'ZZZZ-ZZZZ-ZZZZ', room: 'DEMO-101' },
+      { code: 'AB', room: 'DEMO-101' },
+    ];
+    for (const b of bodies) {
+      const r = await c.post('/api/guest/activate', b);
+      expect([400, 401]).toContain(r.status);
+      if (r.status === 401) expect(r.body).toEqual({ error: { code: 'activation_failed' } });
+    }
+    // Sending both a token and a code is refused.
+    expect((await c.post('/api/guest/activate', { code: s.code, token: s.token, room: 'DEMO-101' })).status).toBe(400);
+  });
+
+  it('is revoked together with the QR on rotation and room move, and stored only as a hash', async () => {
+    const s = env.stays[0];
+    const dump = JSON.stringify(env.ctx.db.prepare('SELECT * FROM activation_credentials').all());
+    expect(dump).not.toContain(s.code.replace(/-/g, ''));
+    expect(dump).not.toContain(s.code);
+    const desk = await reception(env);
+    const rot = await desk.post(`/api/admin/stays/${s.stayId}/rotate-qr`, { reason: 'reprint' });
+    expect(rot.body.qr.code).toMatch(/^\w{4}-\w{4}-\w{4}$/);
+    const c = await new Client(env.app).init();
+    expect((await c.post('/api/guest/activate', { code: s.code, room: 'DEMO-101' })).status).toBe(401);
+    expect((await c.post('/api/guest/activate', { code: rot.body.qr.code, room: 'DEMO-101' })).status).toBe(201);
+    const move = await desk.post(`/api/admin/stays/${s.stayId}/move`, { roomId: roomId(env, 'DEMO-206') });
+    const c2 = await new Client(env.app).init();
+    expect((await c2.post('/api/guest/activate', { code: rot.body.qr.code, room: 'DEMO-101' })).status).toBe(401);
+    expect((await c2.post('/api/guest/activate', { code: rot.body.qr.code, room: 'DEMO-206' })).status).toBe(401);
+    expect((await c2.post('/api/guest/activate', { code: move.body.qr.code, room: 'DEMO-206' })).status).toBe(201);
   });
 });
 

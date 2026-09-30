@@ -5,7 +5,7 @@ import { ApiError, newKey, post } from '../../lib/api';
 import { useQuery } from '../../lib/hooks';
 import { useOnline } from '../../lib/live';
 import { useGuest } from '../../lib/guest';
-import { ErrorNotice, Notice, ProgressBar, Spinner, progressTone } from '../../components/ui';
+import { ErrorNotice, Loading, Notice, Steps, progressTone } from '../../components/ui';
 import { progressLabel } from './Requests';
 import type { GuestNoticeDto, GuestRequestDto } from '../../../../shared/src/api';
 
@@ -15,9 +15,8 @@ export default function RequestDetail() {
   const guest = useGuest();
   const online = useOnline();
   const location = useLocation();
-  const active = guest.me?.capability === 'order';
-  const q = useQuery<{ request: GuestRequestDto }>(active ? `/api/guest/requests/${ref}` : null, [guest.version]);
-  const notices = useQuery<{ notices: GuestNoticeDto[] }>(active ? '/api/guest/notices' : null, [guest.version]);
+  const q = useQuery<{ request: GuestRequestDto }>(`/api/guest/requests/${ref}`, [guest.version]);
+  const notices = useQuery<{ notices: GuestNoticeDto[] }>('/api/guest/notices', [guest.version]);
   const [calling, setCalling] = useState(false);
   const [callError, setCallError] = useState<ApiError | null>(null);
   const [callbackKey, setCallbackKey] = useState(newKey);
@@ -36,13 +35,9 @@ export default function RequestDetail() {
     return () => document.removeEventListener('visibilitychange', markRead);
   }, [notices.data, ref]);
 
-  if (guest.loading) return <Spinner />;
-  if (!active) {
-    return <Notice kind="info">{guest.me ? t('stay.postStay') : t('requests.needsActivation')}</Notice>;
-  }
   if (q.error) return <ErrorNotice code={q.error.code} onRetry={q.reload} />;
   const r = q.data?.request;
-  if (!r) return <Spinner />;
+  if (!r) return <Loading />;
 
   const requestCallback = async () => {
     setCalling(true);
@@ -59,47 +54,53 @@ export default function RequestDetail() {
     }
   };
 
+  const justSent = (location.state as { justSent?: boolean } | null)?.justSent && r.progress === 'sent';
   return (
     <>
-      <p>
-        <Link to="/h/requests">← {t('requests.title')}</Link>
-      </p>
-      <div className="row">
+      <div className="page-head">
+        <Link to="/h/requests" className="btn-text">
+          ← {t('requests.title')}
+        </Link>
+        <span className="eyebrow" style={{ display: 'block' }}>
+          {t('requests.ref', { ref: r.ref })} · <span className="num">{t('requests.createdAt', { time: time(r.createdAt) })}</span>
+        </span>
         <h1>{r.type === 'food' ? t('requests.food') : t('requests.service')}</h1>
-        <span className={`pill ${progressTone(r.progress)}`}>{progressLabel(t, r)}</span>
-      </div>
-      <p className="muted">
-        {t('requests.ref', { ref: r.ref })} · {t('requests.createdAt', { time: time(r.createdAt) })}
-      </p>
-      {(location.state as { justSent?: boolean } | null)?.justSent && r.progress === 'sent' && r.type === 'food' && (
-        <Notice kind="ok">{r.destination.kind === 'pool' ? t('cart.confirmationInPerson') : t('cart.confirmationRequired')}</Notice>
-      )}
-      <div className="card">
-        <ProgressBar type={r.type} progress={r.progress} />
-        <p className="mt mb0" aria-live="polite">
-          <strong>{progressLabel(t, r)}</strong>
+        <p aria-live="polite" style={{ color: 'var(--ink)' }}>
+          <span className={`state ${progressTone(r.progress)}`}>{progressLabel(t, r)}</span>
         </p>
+        <Steps type={r.type} progress={r.progress} />
       </div>
+      {justSent && (
+        <div className="pad">
+          <Notice kind="ok">
+            {r.type === 'service' ? t('services.sent') : r.destination.kind === 'pool' ? t('cart.confirmationInPerson') : t('cart.confirmationRequired')}
+          </Notice>
+        </div>
+      )}
 
       {r.progress === 'not_reached' && (
-        <div className="card" style={{ borderColor: '#eec3bf' }}>
-          <h2 style={{ marginTop: 0 }}>{t('callback.title')}</h2>
-          <p>{t('callback.body')}</p>
+        <section className="section" style={{ borderLeft: '3px solid var(--error)' }}>
+          <h2>{t('callback.title')}</h2>
+          <p className="mt">{t('callback.body')}</p>
           {r.canRequestCallback ? (
             <button className="btn-primary btn-block" onClick={requestCallback} disabled={calling || !online}>
               {calling ? t('callback.requesting') : t('callback.button')}
             </button>
           ) : (
-            <Notice kind="info">{t('callback.unavailable')}</Notice>
+            <Notice kind="plain">{t('callback.unavailable')}</Notice>
           )}
-          {!online && <p className="muted">{t('app.offline')}</p>}
+          {!online && <p className="muted mt">{t('app.offline')}</p>}
           {callError && <ErrorNotice code={callError.code} />}
+        </section>
+      )}
+      {requested && r.progress !== 'not_reached' && (
+        <div className="pad">
+          <Notice kind="ok">{t('callback.requested')}</Notice>
         </div>
       )}
-      {requested && r.progress !== 'not_reached' && <Notice kind="ok">{t('callback.requested')}</Notice>}
 
-      <div className="card">
-        <h3>{t('requests.items')}</h3>
+      <section className="section">
+        <h2 className="eyebrow">{t('requests.items')}</h2>
         <ul className="lines">
           {r.lines.map((x, i) => (
             <li key={i}>
@@ -108,48 +109,50 @@ export default function RequestDetail() {
                 {x.options.length > 0 && <div className="opt">{x.options.map((o) => l(o.name)).join(', ')}</div>}
                 {x.details && <div className="opt">{x.details}</div>}
               </div>
-              <div>{x.complimentary ? t('services.complimentary') : money(x.lineTotalMinor, r.currency)}</div>
+              <div className="num">{x.complimentary ? t('services.complimentary') : money(x.lineTotalMinor, r.currency)}</div>
             </li>
           ))}
         </ul>
         <div className="total-row">
           <span>{t('requests.total')}</span>
-          <span>{money(r.totalMinor, r.currency)}</span>
+          <span className="num">{money(r.totalMinor, r.currency)}</span>
         </div>
-      </div>
-      <div className="card">
-        <h3>{t('requests.destination')}</h3>
+      </section>
+      <section className="section">
+        <h2 className="eyebrow">{t('requests.destination')}</h2>
         <p className="mb0">{l(r.destination.label)}</p>
         {r.notes && (
           <>
-            <h3 className="mt">{t('requests.notes')}</h3>
+            <h2 className="eyebrow mt">{t('requests.notes')}</h2>
             <p className="mb0">{r.notes}</p>
           </>
         )}
-      </div>
+      </section>
       {r.amendments.length > 0 && (
-        <div className="card">
-          <h3>{t('requests.amendments')}</h3>
-          <ul>
+        <section className="section">
+          <h2 className="eyebrow">{t('requests.amendments')}</h2>
+          <ul className="lines">
             {r.amendments.map((a, i) => (
               <li key={i}>
-                {time(a.createdAt)} — {a.note}
+                <span>{a.note}</span>
+                <span className="num muted">{time(a.createdAt)}</span>
               </li>
             ))}
           </ul>
-        </div>
+        </section>
       )}
       {r.attempts.length > 0 && (
-        <div className="card">
-          <h3>{t('requests.attempts')}</h3>
-          <ul>
+        <section className="section">
+          <h2 className="eyebrow">{t('requests.attempts')}</h2>
+          <ul className="lines">
             {r.attempts.map((a) => (
               <li key={a.attemptNo}>
-                {t('requests.attemptLine', { n: a.attemptNo, status: t(`requests.attempt_${a.status}`) })} · {time(a.resolvedAt ?? a.createdAt)}
+                <span>{t('requests.attemptLine', { n: a.attemptNo, status: t(`requests.attempt_${a.status}`) })}</span>
+                <span className="num muted">{time(a.resolvedAt ?? a.createdAt)}</span>
               </li>
             ))}
           </ul>
-        </div>
+        </section>
       )}
     </>
   );

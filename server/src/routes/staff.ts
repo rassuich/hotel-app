@@ -47,7 +47,7 @@ export function staffRoutes(ctx: AppContext): Router {
   r.get('/me', (req, res) => {
     const s = loadStaff(ctx, req);
     const me: StaffMeDto = {
-      account: { id: s.accountId, role: s.role, name: { fr: s.nameFr, en: s.nameEn }, propertyId: s.propertyId, propertyName: s.propertyName },
+      account: { id: s.accountId, role: s.role, name: { fr: s.nameFr, en: s.nameEn, es: s.nameEs || s.nameEn }, propertyId: s.propertyId, propertyName: s.propertyName },
       device: s.deviceId ? { id: s.deviceId, name: s.deviceName! } : null,
     };
     res.json({ me });

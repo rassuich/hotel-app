@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { useI18n } from '../../i18n';
 import { ApiError, patch, post } from '../../lib/api';
 import { useQuery } from '../../lib/hooks';
-import { ErrorNotice, Notice, Sheet, Spinner } from '../../components/ui';
+import { ErrorNotice, Notice, Sheet, Loading } from '../../components/ui';
 
 interface StayRow {
   id: string;
@@ -33,7 +33,7 @@ interface PmsStatus {
   lastChangeAt: string | null;
 }
 
-function QrSheet({ qr, onClose }: { qr: { url: string; room: string } | null; onClose: () => void }) {
+function QrSheet({ qr, onClose }: { qr: { url: string; code: string; room: string } | null; onClose: () => void }) {
   const { t } = useI18n();
   const [img, setImg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -58,11 +58,20 @@ function QrSheet({ qr, onClose }: { qr: { url: string; room: string } | null; on
         </div>
       }
     >
-      <div className="qr-box">
-        {img ? <img src={img} alt={t('admin.qrTitle', { room: qr?.room ?? '' })} /> : <Spinner />}
-        <Notice kind="warn">{t('admin.qrWarning')}</Notice>
-        <div className="qr-url no-print">{qr?.url}</div>
+      <div className="credential">
+        {img ? <img src={img} alt={t('admin.qrTitle', { room: qr?.room ?? '' })} /> : <Loading />}
+        <div>
+          <span className="label">{t('admin.validationCode')}</span>
+          <div className="code" data-testid="validation-code">
+            {qr?.code}
+          </div>
+          <p className="muted mt" style={{ fontSize: '0.85rem' }}>
+            {t('admin.codeHelp', { room: qr?.room ?? '' })}
+          </p>
+        </div>
       </div>
+      <Notice>{t('admin.qrWarning')}</Notice>
+      <div className="url no-print">{qr?.url}</div>
     </Sheet>
   );
 }
@@ -74,7 +83,7 @@ export default function Stays() {
   const stays = useQuery<{ stays: StayRow[]; pms: PmsStatus }>(`/api/admin/stays?filter=${filter}`, [version]);
   const overdue = useQuery<{ stays: StayRow[] }>('/api/admin/stays?filter=overdue', [version]);
   const rooms = useQuery<{ rooms: Room[] }>('/api/admin/rooms', [version]);
-  const [qr, setQr] = useState<{ url: string; room: string } | null>(null);
+  const [qr, setQr] = useState<{ url: string; code: string; room: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ guestName: '', roomId: '', occupants: '1', departure: '' });
   const [moving, setMoving] = useState<StayRow | null>(null);
@@ -107,20 +116,22 @@ export default function Stays() {
       {(overdue.data?.stays.length ?? 0) > 0 && <Notice kind="warn">{t('admin.overdue', { count: overdue.data!.stays.length })}</Notice>}
       {error && <ErrorNotice code={error} />}
 
-      <details className="card" open={filter === 'active'}>
-        <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: 40 }}>{t('admin.checkIn')}</summary>
+      <details className="panel" open={filter === 'active'}>
+        <summary className="eyebrow" style={{ cursor: 'pointer', minHeight: 40, display: 'flex', alignItems: 'center' }}>
+          {t('admin.checkIn')}
+        </summary>
         <form
           className="form-grid mt"
           onSubmit={(e) => {
             e.preventDefault();
             void run(async () => {
-              const r = await post<{ qr: { url: string } }>('/api/admin/stays', {
+              const r = await post<{ qr: { url: string; code: string } }>('/api/admin/stays', {
                 guestName: form.guestName,
                 roomId: Number(form.roomId),
                 occupants: Number(form.occupants),
                 scheduledDeparture: form.departure ? new Date(form.departure).toISOString() : null,
               });
-              setQr({ url: r.qr.url, room: freeRooms.find((x) => x.id === Number(form.roomId))?.label ?? '' });
+              setQr({ url: r.qr.url, code: r.qr.code, room: freeRooms.find((x) => x.id === Number(form.roomId))?.label ?? '' });
               setForm({ guestName: '', roomId: '', occupants: '1', departure: '' });
             });
           }}
@@ -159,29 +170,33 @@ export default function Stays() {
           </a>
         ))}
       </div>
-      {stays.loading && !stays.data && <Spinner />}
+      {stays.loading && !stays.data && <Loading />}
       {stays.data?.stays.length === 0 && <p className="muted">{t('admin.noStays')}</p>}
       {stays.data?.stays.map((s) => (
-        <div className="card" key={s.id}>
-          <div className="row" style={{ flexWrap: 'wrap' }}>
+        <div className="stay" key={s.id}>
+          <div className="row" style={{ alignItems: 'flex-start' }}>
             <div>
               <h3>
-                {s.roomLabel ?? '—'} · {s.guestName} {s.isDemo && <span className="pill pill-warn">{t('admin.demo')}</span>}
+                {s.roomLabel ?? '—'} · {s.guestName} {s.isDemo && <span className="tag">{t('admin.demo')}</span>}
               </h3>
-              <div className="row-start">
-                <span className="pill pill-muted">
+              <div className="facts">
+                <span>
                   {t('admin.occupants')}: {s.occupants}
                 </span>
                 {s.scheduledDeparture && (
-                  <span className={`pill ${s.overdue ? 'pill-bad' : 'pill-muted'}`}>
+                  <span className={s.overdue ? 'bad' : ''}>
                     {t('admin.departure')}: {dateTime(s.scheduledDeparture)} {s.overdue ? `· ${t('admin.overdueBadge')}` : ''}
                   </span>
                 )}
-                {s.status === 'active' && <span className={`pill ${s.activeQr ? 'pill-ok' : 'pill-muted'}`}>{s.activeQr ? t('admin.qrActive') : t('admin.qrNone')}</span>}
-                <span className="pill pill-info">{t('admin.devicesSignedIn', { count: s.activeSessions })}</span>
-                {s.openRequests > 0 && <span className="pill pill-info">{t('admin.openRequests', { count: s.openRequests })}</span>}
-                {s.attentionRequests > 0 && <span className="pill pill-bad">{t('admin.attention', { count: s.attentionRequests })}</span>}
-                {s.checkedOutAt && <span className="pill pill-muted">{t('staff.stayCheckedOut')} {dateTime(s.checkedOutAt)}</span>}
+                {s.status === 'active' && <span>{s.activeQr ? t('admin.qrActive') : t('admin.qrNone')}</span>}
+                <span>{t('admin.devicesSignedIn', { count: s.activeSessions })}</span>
+                {s.openRequests > 0 && <span>{t('admin.openRequests', { count: s.openRequests })}</span>}
+                {s.attentionRequests > 0 && <span className="bad">{t('admin.attention', { count: s.attentionRequests })}</span>}
+                {s.checkedOutAt && (
+                  <span>
+                    {t('staff.stayCheckedOut')} {dateTime(s.checkedOutAt)}
+                  </span>
+                )}
               </div>
             </div>
             {s.status === 'active' && (
@@ -190,8 +205,8 @@ export default function Stays() {
                   className="btn-secondary btn-sm"
                   onClick={() =>
                     run(async () => {
-                      const r = await post<{ qr: { url: string } }>(`/api/admin/stays/${s.id}/rotate-qr`, { reason: 'reprint' });
-                      setQr({ url: r.qr.url, room: s.roomLabel ?? '' });
+                      const r = await post<{ qr: { url: string; code: string } }>(`/api/admin/stays/${s.id}/rotate-qr`, { reason: 'reprint' });
+                      setQr({ url: r.qr.url, code: r.qr.code, room: s.roomLabel ?? '' });
                     })
                   }
                 >
@@ -202,8 +217,8 @@ export default function Stays() {
                   title={t('admin.occupantChangeHelp')}
                   onClick={() =>
                     run(async () => {
-                      const r = await post<{ qr: { url: string } }>(`/api/admin/stays/${s.id}/rotate-qr`, { reason: 'occupant_change' });
-                      setQr({ url: r.qr.url, room: s.roomLabel ?? '' });
+                      const r = await post<{ qr: { url: string; code: string } }>(`/api/admin/stays/${s.id}/rotate-qr`, { reason: 'occupant_change' });
+                      setQr({ url: r.qr.url, code: r.qr.code, room: s.roomLabel ?? '' });
                     })
                   }
                 >
@@ -239,10 +254,10 @@ export default function Stays() {
             disabled={!moveTo}
             onClick={() =>
               run(async () => {
-                const r = await post<{ qr: { url: string } }>(`/api/admin/stays/${moving!.id}/move`, { roomId: Number(moveTo) });
+                const r = await post<{ qr: { url: string; code: string } }>(`/api/admin/stays/${moving!.id}/move`, { roomId: Number(moveTo) });
                 const label = freeRooms.find((x) => x.id === Number(moveTo))?.label ?? '';
                 setMoving(null);
-                setQr({ url: r.qr.url, room: label });
+                setQr({ url: r.qr.url, code: r.qr.code, room: label });
               })
             }
           >

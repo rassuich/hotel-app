@@ -9,15 +9,22 @@ function activationLinks(): string[] {
   const seed = readFileSync('.e2e/seed.txt', 'utf8');
   return [...seed.matchAll(/(http:\/\/\S+\/activate\?p=\S+)/g)].map((m) => m[1]);
 }
+function validationCodes(): string[] {
+  const seed = readFileSync('.e2e/seed.txt', 'utf8');
+  return [...seed.matchAll(/Code:\s+(\S+)/g)].map((m) => m[1]);
+}
 
+/** A guest phone opening the private QR link: language first, then the room number. */
 async function guestDevice(browser: Browser, link: string, room: string): Promise<Page> {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await ctx.newPage();
   await page.goto(link);
   // The private token is removed from the address bar before anything else.
   expect(page.url()).not.toContain('#t=');
+  await page.getByRole('button', { name: /Français/ }).click();
+  await expect(page.getByRole('heading', { name: 'Confirmez votre chambre' })).toBeVisible();
   await page.getByLabel('Numéro de chambre').fill(room);
-  await page.getByRole('button', { name: 'Activer' }).click();
+  await page.getByRole('button', { name: 'Valider' }).click();
   await page.waitForURL('**/h');
   return page;
 }
@@ -45,15 +52,22 @@ async function addTeaAndSend(page: Page) {
 
 test.describe.configure({ mode: 'serial' });
 
-test('public menus work without login and a public hotel link cannot authenticate', async ({ page }) => {
-  await page.goto('/p/palace-anfa');
-  await expect(page.getByRole('heading', { name: /Bienvenue au Le Palace d'Anfa/ })).toBeVisible();
-  await page.goto('/h/food');
-  await expect(page.getByRole('button', { name: /Omelette/ })).toBeVisible();
-  await page.goto('/h/requests');
-  await expect(page.getByText('Activez votre séjour pour voir vos demandes.')).toBeVisible();
-  const me = await page.request.get('/api/guest/me');
-  expect(me.status()).toBe(401);
+test('only validated guests get in: every entry point lands on the language and validation gate', async ({ page }) => {
+  for (const path of ['/h', '/h/food', '/h/services', '/p/palace-anfa']) {
+    await page.goto(path);
+    await expect(page.getByText('Choisissez votre langue · Choose your language · Elija su idioma')).toBeVisible();
+  }
+  for (const api of ['/api/guest/catalog/menu', '/api/guest/catalog/content', '/api/guest/catalog/services']) {
+    expect((await page.request.get(api)).status()).toBe(401);
+  }
+  await page.getByRole('button', { name: /Français/ }).click();
+  await expect(page.getByRole('heading', { name: 'Validez votre séjour' })).toBeVisible();
+  await expect(page.getByRole('button', { name: "Ouvrir l'appareil photo" })).toBeVisible();
+  // A wrong code never reveals anything.
+  await page.getByLabel('Code de validation', { exact: true }).fill('ZZZZ-ZZZZ-ZZZZ');
+  await page.getByLabel('Numéro de chambre').fill('DEMO-101');
+  await page.getByRole('button', { name: 'Valider' }).click();
+  await expect(page.getByText('Nous n\'avons pas pu vérifier ce code', { exact: false })).toBeVisible();
 });
 
 test('full food workflow: two tablets, failed confirmation, same-ticket callback, POS entry', async ({ browser }) => {
@@ -115,17 +129,28 @@ test('full food workflow: two tablets, failed confirmation, same-ticket callback
   expect((await list.json()).requests.filter((r: { type: string }) => r.type === 'food')).toHaveLength(1);
 });
 
-test('services: no call, reception records housekeeping hand-off and completion', async ({ browser }) => {
+test('services: several ticked items become ONE request; no call; housekeeping and completion', async ({ browser }) => {
   const [link] = activationLinks();
   const guest = await guestDevice(browser, link, 'DEMO-101');
   const rc = await staffTablet(browser, 'palace.reception', 'demo-reception', 'Reception Tablet 1');
   await guest.goto('/h/services');
-  await guest.getByRole('button', { name: /Serviettes/ }).click();
+  await guest.getByLabel('Serviettes').check();
   await guest.getByLabel('Précisions (facultatif)').fill('Deux grandes');
-  await guest.getByRole('button', { name: 'Envoyer la demande' }).click();
+  await guest.getByLabel('Brosse à dents').check();
+  await guest.getByLabel('Oreiller supplémentaire').check();
+  await guest.getByRole('button', { name: /Vérifier la demande/ }).click();
+  const sheet = guest.getByRole('dialog');
+  await expect(sheet.getByText('1 × Serviettes')).toBeVisible();
+  await expect(sheet.getByText('1 × Brosse à dents')).toBeVisible();
+  await sheet.getByRole('button', { name: 'Envoyer la demande' }).click();
+  await guest.waitForURL('**/h/requests/PA-*');
   await expect(guest.getByText('Demande envoyée à la réception.')).toBeVisible();
+  const ref = guest.url().split('/').pop()!;
 
-  const card = rc.locator('article', { hasText: 'Serviettes' });
+  const card = rc.locator('article', { hasText: ref });
+  await expect(card.getByText('Serviettes')).toBeVisible();
+  await expect(card.getByText('Brosse à dents')).toBeVisible();
+  await expect(card.getByText('Oreiller supplémentaire')).toBeVisible();
   await card.getByRole('button', { name: 'Prendre cette demande' }).click();
   await expect(card.getByRole('button', { name: 'Confirmée par téléphone' })).toHaveCount(0);
   await card.getByRole('button', { name: 'Gouvernante contactée' }).click();
@@ -133,6 +158,8 @@ test('services: no call, reception records housekeeping hand-off and completion'
   await card.getByRole('button', { name: 'Terminée' }).click();
   await guest.goto('/h/requests');
   await expect(guest.getByText('Terminée').first()).toBeVisible();
+  const list = await guest.request.get('/api/guest/requests');
+  expect((await list.json()).requests.filter((r: { type: string }) => r.type === 'service')).toHaveLength(1);
 });
 
 test('pool orders use configured labels and in-person confirmation', async ({ browser }) => {
@@ -173,23 +200,25 @@ test('reception room move signs the old device out; checkout blocks ordering', a
   const guest = await guestDevice(browser, link, 'DEMO-102');
   const desk = await staffTablet(browser, 'palace.reception', 'demo-reception', 'Reception Tablet 2', '/admin/stays');
   await desk.goto('/admin/stays');
-  const stay = desk.locator('.card', { hasText: 'DEMO-102 · Demo Guest B' });
+  const stay = desk.locator('.stay', { hasText: 'DEMO-102 · Demo Guest B' });
   await stay.getByRole('button', { name: 'Changer de chambre' }).click();
   const dialog = desk.getByRole('dialog');
   await dialog.getByLabel('Chambre').selectOption({ label: 'DEMO-205' });
   await dialog.getByRole('button', { name: 'Confirmer' }).click();
   await expect(desk.getByRole('heading', { name: /QR d'activation privé — DEMO-205/ })).toBeVisible();
-  const newLink = await desk.locator('.qr-url').innerText();
+  const newLink = await desk.locator('.url').innerText();
+  await expect(desk.getByTestId('validation-code')).toHaveText(/^\w{4}-\w{4}-\w{4}$/);
   await desk.getByRole('button', { name: 'Fermer' }).click();
 
   await guest.goto('/h/requests');
   await expect(guest.getByText(/Cet appareil a été déconnecté/)).toBeVisible();
+  await expect(guest.getByRole('heading', { name: 'Validez votre séjour' })).toBeVisible();
 
   // New QR for the new room works; then checkout stops ordering on that device.
   const moved = await guestDevice(browser, newLink, 'DEMO-205');
   desk.once('dialog', (d) => d.accept());
-  await desk.locator('.card', { hasText: 'DEMO-205 · Demo Guest B' }).getByRole('button', { name: 'Départ', exact: true }).click();
-  await expect(desk.locator('.card', { hasText: 'DEMO-205 · Demo Guest B' })).toHaveCount(0);
+  await desk.locator('.stay', { hasText: 'DEMO-205 · Demo Guest B' }).getByRole('button', { name: 'Départ', exact: true }).click();
+  await expect(desk.locator('.stay', { hasText: 'DEMO-205 · Demo Guest B' })).toHaveCount(0);
   await moved.goto('/h/stay');
   await expect(moved.getByText('Votre séjour est terminé. Les commandes sont fermées.')).toBeVisible();
   await expect(moved.getByText('Pour votre facture, veuillez contacter la réception.')).toBeVisible();
@@ -197,18 +226,26 @@ test('reception room move signs the old device out; checkout blocks ordering', a
   expect(r.status()).toBe(403);
 });
 
-test('English covers the core guest flow', async ({ browser }) => {
-  const ctx = await browser.newContext({ locale: 'en-GB' });
+test('Spanish and English: typed validation code, then the whole app in the chosen language', async ({ browser }) => {
+  const [code] = validationCodes();
+  const ctx = await browser.newContext({ locale: 'de-DE', viewport: { width: 390, height: 844 } });
   const page = await ctx.newPage();
   await page.goto('/');
-  await page.getByRole('button', { name: 'English' }).click();
-  await expect(page.getByRole('heading', { name: 'Welcome' })).toBeVisible();
-  await page.getByRole('button', { name: "Select Le Palace d'Anfa" }).click();
-  await expect(page.getByRole('heading', { name: "Welcome to Le Palace d'Anfa" })).toBeVisible();
-  await page.getByRole('link', { name: /Food/ }).first().click();
+  await page.getByRole('button', { name: /Español/ }).click();
+  await expect(page.getByRole('heading', { name: 'Valide su estancia' })).toBeVisible();
+  await page.getByLabel('Código de validación', { exact: true }).fill(code.toLowerCase());
+  await page.getByLabel('Número de habitación').fill('demo-101');
+  await page.getByRole('button', { name: 'Validar' }).click();
+  await page.waitForURL('**/h');
+  await expect(page.getByRole('heading', { name: /Le Palace d'Anfa/ })).toBeVisible();
+  await page.goto('/h/food');
+  await expect(page.getByRole('button', { name: 'Desayuno' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Tortilla francesa/ })).toBeVisible();
+  await page.goto('/h/services');
+  await expect(page.getByLabel('Toallas')).toBeVisible();
+  // Switch to English from the masthead.
+  await page.locator('select.lang-select').selectOption('en');
+  await expect(page.getByLabel('Towels')).toBeVisible();
+  await page.goto('/h/food');
   await expect(page.getByRole('button', { name: 'Breakfast' })).toBeVisible();
-  await page.getByRole('link', { name: 'My requests' }).click();
-  await expect(page.getByText('Activate your stay to see your requests.')).toBeVisible();
-  await page.getByRole('button', { name: /Français/ }).click();
-  await expect(page.getByText('Activez votre séjour pour voir vos demandes.')).toBeVisible();
 });

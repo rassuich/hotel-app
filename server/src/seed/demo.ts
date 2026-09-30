@@ -86,8 +86,75 @@ function services(db: DB) {
   ins.run(P, 'Repassage (exemple payant)', 'Pressing (paid example)', 'Tarif de démonstration.', 'Demonstration fee.', 0, 5000, 3, 1, 5);
 }
 
+/** Spanish demo translations, keyed by the English text of each demo row. */
+const ES: Record<string, string> = {
+  'Welcome (demo content)': 'Bienvenida (contenido de demostración)',
+  'This text is a sample. It will be replaced with hotel-approved information.': 'Este texto es un ejemplo. Se sustituirá por la información validada por el hotel.',
+  'Wi-Fi (sample)': 'Wi-Fi (ejemplo)',
+  'Network and access: to be provided by reception.': 'Red y acceso: los facilitará la recepción.',
+  'Room Service (sample hours)': 'Room Service (horario de ejemplo)',
+  'Example: 07:00 – 23:00': 'Ejemplo: 07:00 – 23:00',
+  'Pool (sample hours)': 'Piscina (horario de ejemplo)',
+  'Example: 09:00 – 19:00': 'Ejemplo: 09:00 – 19:00',
+  Reception: 'Recepción',
+  'Room Service': 'Room Service',
+  'Internal extension: to be configured': 'Extensión interna: por configurar',
+  'Music evening (sample event)': 'Velada musical (evento de ejemplo)',
+  'Demonstration event.': 'Evento de demostración.',
+  'Coming soon': 'Próximamente',
+  'In-app requests are not yet open for this hotel.': 'Las solicitudes desde la aplicación aún no están disponibles en este hotel.',
+  Breakfast: 'Desayuno',
+  Mains: 'Platos principales',
+  Drinks: 'Bebidas',
+  Omelette: 'Tortilla francesa',
+  'Demonstration dish.': 'Plato de demostración.',
+  'Demonstration drink.': 'Bebida de demostración.',
+  Filling: 'Relleno',
+  Cheese: 'Queso',
+  Mushrooms: 'Champiñones',
+  'Pastry basket': 'Cesta de bollería',
+  'Club sandwich': 'Club sándwich',
+  Side: 'Acompañamiento',
+  Fries: 'Patatas fritas',
+  Salad: 'Ensalada',
+  'Vegetable tagine': 'Tajín de verduras',
+  'Dish of the day': 'Plato del día',
+  'Example of an unavailable item.': 'Ejemplo de artículo no disponible.',
+  'Mint tea': 'Té de menta',
+  'Fresh orange juice': 'Zumo de naranja natural',
+  'Mineral water': 'Agua mineral',
+  Toothbrush: 'Cepillo de dientes',
+  'Toothbrush and toothpaste kit.': 'Kit de cepillo y pasta de dientes.',
+  Towels: 'Toallas',
+  'Extra bath towels.': 'Toallas de baño adicionales.',
+  'Extra pillow': 'Almohada adicional',
+  'Shaving kit': 'Kit de afeitado',
+  'Pressing (paid example)': 'Planchado (ejemplo de pago)',
+  'Demonstration fee.': 'Tarifa de demostración.',
+};
+
+function spanish(db: DB) {
+  const cols: [string, string][] = [
+    ['content_items', 'title'],
+    ['content_items', 'body'],
+    ['food_categories', 'name'],
+    ['food_items', 'name'],
+    ['food_items', 'description'],
+    ['food_option_groups', 'name'],
+    ['food_options', 'name'],
+    ['service_items', 'name'],
+    ['service_items', 'description'],
+  ];
+  for (const [table, base] of cols) {
+    const upd = db.prepare(`UPDATE ${table} SET ${base}_es = ? WHERE ${base}_en = ? AND ${base}_es = ''`);
+    for (const [en, es] of Object.entries(ES)) upd.run(es, en);
+  }
+  const loc = db.prepare(`UPDATE delivery_locations SET label_es = REPLACE(REPLACE(REPLACE(label_en, 'Pool', 'Piscina'), 'Lounger', 'Tumbona'), 'Table', 'Mesa') WHERE is_demo = 1`);
+  loc.run();
+}
+
 export interface DemoSeedResult {
-  stays: { guestName: string; room: string; activationUrl: string }[];
+  stays: { guestName: string; room: string; activationUrl: string; code: string }[];
 }
 
 export function seedDemo(ctx: AppContext): DemoSeedResult {
@@ -100,6 +167,7 @@ export function seedDemo(ctx: AppContext): DemoSeedResult {
     rooms(db);
     menu(db);
     services(db);
+    spanish(db);
   })();
   const roomId = (label: string) => db.prepare('SELECT id FROM rooms WHERE property_id = ? AND label = ?').pluck().get(P, label) as number;
   const departure = (days: number) => {
@@ -118,7 +186,7 @@ export function seedDemo(ctx: AppContext): DemoSeedResult {
       { kind: 'check_in', guestName: s.guestName, roomId: roomId(s.room), occupants: s.occupants, scheduledDeparture: departure(s.days) },
       { source: 'demo', isDemo: true },
     );
-    return { guestName: s.guestName, room: s.room, activationUrl: out.qr!.url };
+    return { guestName: s.guestName, room: s.room, activationUrl: out.qr!.url, code: out.qr!.code };
   });
   return { stays };
 }

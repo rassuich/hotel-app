@@ -23,8 +23,8 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
 }
 
 export interface TestEnv extends BuiltApp {
-  /** Private activation tokens for the two demo stays (DEMO-101, DEMO-102). */
-  stays: { token: string; room: string; stayId: string }[];
+  /** Private activation tokens and typed codes for the two demo stays (DEMO-101, DEMO-102). */
+  stays: { token: string; code: string; room: string; stayId: string }[];
 }
 
 export function tokenFromUrl(url: string): string {
@@ -52,7 +52,7 @@ export async function setup(config: Partial<AppConfig> = {}, opts: BuildOptions 
       .prepare(`SELECT ra.stay_id FROM room_assignments ra JOIN rooms r ON r.id = ra.room_id WHERE r.label = ? AND ra.ended_at IS NULL`)
       .pluck()
       .get(s.room) as string;
-    return { token: tokenFromUrl(s.activationUrl), room: s.room, stayId };
+    return { token: tokenFromUrl(s.activationUrl), code: s.code, room: s.room, stayId };
   });
   return { ...built, stays };
 }
@@ -138,7 +138,7 @@ export async function requestTowels(env: TestEnv, g: Client, idempotencyKey = ke
   const towels = serviceItem(env, 'Towels');
   return g.post('/api/guest/requests/service', {
     idempotencyKey,
-    line: { itemId: towels.id, quantity: 2, details: 'Two large ones', expectedComplimentary: true },
+    lines: [{ itemId: towels.id, quantity: 2, details: 'Two large ones', expectedComplimentary: true }],
     destination: { kind: 'room' },
   });
 }

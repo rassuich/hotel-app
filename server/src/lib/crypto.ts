@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 
 /** 256-bit, URL-safe, unguessable token (activation QR, session cookies). */
 export function randomToken(bytes = 32): string {
@@ -34,4 +34,27 @@ export function safeEqual(a: string, b: string): boolean {
   const ab = Buffer.from(a);
   const bb = Buffer.from(b);
   return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
+/**
+ * Hand-typed validation codes use Crockford base32 (no I, L, O, U), 12 characters
+ * = 60 bits of entropy, shown as XXXX-XXXX-XXXX.
+ */
+const CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+export const CODE_LENGTH = 12;
+
+export function randomCode(): string {
+  let out = '';
+  for (let i = 0; i < CODE_LENGTH; i++) out += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
+  return out.match(/.{4}/g)!.join('-');
+}
+
+/** Normalises what a guest typed: case, spaces/dashes, and look-alike letters. */
+export function normalizeCode(input: string): string {
+  return input
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, '')
+    .replace(/O/g, '0')
+    .replace(/[IL]/g, '1')
+    .replace(/U/g, 'V');
 }

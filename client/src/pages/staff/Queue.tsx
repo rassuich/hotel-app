@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { get } from '../../lib/api';
 import { useLiveStream } from '../../lib/live';
-import { ErrorNotice, Notice, Spinner } from '../../components/ui';
+import { ErrorNotice, Notice, Loading } from '../../components/ui';
 import TicketCard from './TicketCard';
 import { useStaff } from './staffContext';
 import type { StaffRequestDto } from '../../../../shared/src/api';
@@ -141,30 +141,30 @@ export default function Queue() {
           </a>
         </div>
         <div className="row-start">
-          <span className={`pill ${live === 'live' ? 'pill-ok' : 'pill-warn'}`} role="status">
-            {live === 'live' ? `● ${t('staff.live')}` : t('staff.reconnecting')}
+          <span className={`state ${live === 'live' ? 'ok' : 'warn'}`} role="status">
+            {live === 'live' ? t('staff.live') : t('staff.reconnecting')}
           </span>
-          {chime.enabled ? <span className="pill pill-ok">{t('staff.soundOn')}</span> : <button className="btn-secondary btn-sm" onClick={chime.enable}>{t('staff.enableSound')}</button>}
+          {chime.enabled ? <span className="state ok">{t('staff.soundOn')}</span> : <button className="btn-secondary btn-sm" onClick={chime.enable}>{t('staff.enableSound')}</button>}
         </div>
       </div>
       <p className="muted" style={{ fontSize: '0.8rem' }}>
         {t('staff.alertNote')}
       </p>
       {alert && (
-        <div className="alert-toast" role="alert">
+        <div className="alert-bar" role="alert">
           {alert}
         </div>
       )}
       {stale && (
         <Notice kind="info">
           <span>{t('staff.stale')}</span>{' '}
-          <button className="btn-ghost btn-sm" onClick={() => setStale(false)}>
+          <button className="btn-text btn-sm" onClick={() => setStale(false)}>
             {t('app.close')}
           </button>
         </Notice>
       )}
       {error && <ErrorNotice code={error} onRetry={load} />}
-      {!items && <Spinner />}
+      {!items && <Loading />}
       {items && list.length === 0 && <p className="muted mt">{t('staff.emptyQueue')}</p>}
       {scope === 'open' ? (
         <>

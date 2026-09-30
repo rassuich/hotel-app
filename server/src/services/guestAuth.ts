@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import type { AppContext } from '../context';
 import { ApiError, unauthorized } from '../lib/errors';
 import { addHours, nowIso } from '../lib/clock';
-import { newId, randomToken, sha256 } from '../lib/crypto';
+import { newId, normalizeCode, randomToken, sha256, CODE_LENGTH } from '../lib/crypto';
 import { currentAssignment, getProperty, getStay, type GuestSessionRow, type PropertyRow, type StayRow } from './rows';
 
 export const GUEST_COOKIE = 'pa_guest';
@@ -22,29 +22,37 @@ function normalize(value: string): string {
 }
 
 /**
- * Exchanges a private activation token (+ optional room/name check) for a
- * server-revocable session. Every failure returns the same generic error so
- * guesses reveal nothing about which room or name exists.
+ * Exchanges a private activation credential — the QR token, or the hand-typed
+ * validation code — for a server-revocable session. Every failure returns the
+ * same generic error so guesses reveal nothing about which code, room or name exists.
+ * A typed code always requires the room number too (it is shorter than the QR token).
  */
 export function activate(
   ctx: AppContext,
-  input: { token: string; room?: string; name?: string; language: 'fr' | 'en' },
+  input: { token?: string; code?: string; room?: string; name?: string; language: 'fr' | 'en' | 'es' },
 ): { cookieToken: string; session: GuestSessionRow } {
   const { db } = ctx;
   const fail = () => new ApiError(401, 'activation_failed');
   return db.transaction(() => {
-    const cred = db
-      .prepare('SELECT * FROM activation_credentials WHERE token_hash = ? AND revoked_at IS NULL')
-      .get(sha256(input.token)) as { stay_id: string; assignment_revision: number } | undefined;
+    let cred: { stay_id: string; assignment_revision: number } | undefined;
+    const viaCode = !input.token && !!input.code;
+    if (input.token) {
+      cred = db.prepare('SELECT * FROM activation_credentials WHERE token_hash = ? AND revoked_at IS NULL').get(sha256(input.token)) as typeof cred;
+    } else if (input.code) {
+      const normalized = normalizeCode(input.code);
+      if (normalized.length !== CODE_LENGTH) throw fail();
+      cred = db.prepare('SELECT * FROM activation_credentials WHERE code_hash = ? AND revoked_at IS NULL').get(sha256(normalized)) as typeof cred;
+    }
     if (!cred) throw fail();
     const stay = getStay(db, cred.stay_id);
     if (!stay || stay.status !== 'active') throw fail();
     const assignment = currentAssignment(db, stay.id);
     if (!assignment || assignment.revision !== cred.assignment_revision) throw fail();
     const property = getProperty(db, stay.property_id)!;
-    if (property.activation_check === 'room') {
+    const check = viaCode ? 'room' : property.activation_check;
+    if (check === 'room') {
       if (!input.room || normalize(input.room) !== normalize(assignment.room_label)) throw fail();
-    } else if (property.activation_check === 'name') {
+    } else if (check === 'name') {
       const n = normalize(input.name ?? '');
       if (n.length < 2 || !normalize(stay.guest_name).includes(n)) throw fail();
     }

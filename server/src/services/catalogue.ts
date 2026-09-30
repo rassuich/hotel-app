@@ -10,7 +10,8 @@ import type {
   ServiceItem,
 } from '../../../shared/src/api';
 
-const L = (fr: string, en: string) => ({ fr, en });
+/** Reads `${base}_fr/_en/_es` columns into a Localized value. */
+export const L = (r: Record<string, any>, base: string) => ({ fr: r[`${base}_fr`] ?? '', en: r[`${base}_en`] ?? '', es: r[`${base}_es`] ?? '' });
 
 export function listContent(db: DB, propertyId: string, includePrivate: boolean): ContentItem[] {
   const rows = db
@@ -21,8 +22,8 @@ export function listContent(db: DB, propertyId: string, includePrivate: boolean)
   return rows.map((r) => ({
     id: r.id,
     kind: r.kind,
-    title: L(r.title_fr, r.title_en),
-    body: L(r.body_fr, r.body_en),
+    title: L(r, 'title'),
+    body: L(r, 'body'),
     startsAt: r.starts_at,
     endsAt: r.ends_at,
     isDemo: !!r.is_demo,
@@ -33,12 +34,12 @@ function optionGroups(db: DB, itemId: number, includeUnavailable = true): FoodOp
   const groups = db.prepare('SELECT * FROM food_option_groups WHERE food_item_id = ? ORDER BY sort, id').all(itemId) as Record<string, any>[];
   return groups.map((g) => ({
     id: g.id,
-    name: L(g.name_fr, g.name_en),
+    name: L(g, 'name'),
     minSelect: g.min_select,
     maxSelect: g.max_select,
     options: (db.prepare('SELECT * FROM food_options WHERE group_id = ? ORDER BY sort, id').all(g.id) as Record<string, any>[])
       .filter((o) => includeUnavailable || o.available)
-      .map((o) => ({ id: o.id, name: L(o.name_fr, o.name_en), priceDeltaMinor: o.price_delta_minor, available: !!o.available })),
+      .map((o) => ({ id: o.id, name: L(o, 'name'), priceDeltaMinor: o.price_delta_minor, available: !!o.available })),
   }));
 }
 
@@ -46,8 +47,8 @@ function foodItemDto(db: DB, r: Record<string, any>): FoodItem {
   return {
     id: r.id,
     categoryId: r.category_id,
-    name: L(r.name_fr, r.name_en),
-    description: L(r.description_fr, r.description_en),
+    name: L(r, 'name'),
+    description: L(r, 'description'),
     priceMinor: r.price_minor,
     currency: r.currency,
     available: !!r.available,
@@ -62,7 +63,7 @@ export function listMenu(db: DB, propertyId: string): FoodCategory[] {
     .all(propertyId) as Record<string, any>[];
   return cats.map((c) => ({
     id: c.id,
-    name: L(c.name_fr, c.name_en),
+    name: L(c, 'name'),
     items: (db
       .prepare('SELECT * FROM food_items WHERE category_id = ? AND property_id = ? AND active = 1 ORDER BY sort, id')
       .all(c.id, propertyId) as Record<string, any>[]).map((r) => foodItemDto(db, r)),
@@ -72,8 +73,8 @@ export function listMenu(db: DB, propertyId: string): FoodCategory[] {
 function serviceDto(r: Record<string, any>): ServiceItem {
   return {
     id: r.id,
-    name: L(r.name_fr, r.name_en),
-    description: L(r.description_fr, r.description_en),
+    name: L(r, 'name'),
+    description: L(r, 'description'),
     complimentary: !!r.complimentary,
     priceMinor: r.price_minor,
     currency: r.currency,
@@ -93,7 +94,7 @@ export function listServices(db: DB, propertyId: string): ServiceItem[] {
 export function listLocations(db: DB, propertyId: string): DeliveryLocation[] {
   return (db
     .prepare('SELECT * FROM delivery_locations WHERE property_id = ? AND active = 1 ORDER BY sort, id')
-    .all(propertyId) as Record<string, any>[]).map((r) => ({ id: r.id, zone: r.zone, label: L(r.label_fr, r.label_en) }));
+    .all(propertyId) as Record<string, any>[]).map((r) => ({ id: r.id, zone: r.zone, label: L(r, 'label') }));
 }
 
 // ---------------------------------------------------------------------------
@@ -103,9 +104,8 @@ export function listLocations(db: DB, propertyId: string): DeliveryLocation[] {
 export interface QuotedLine {
   itemKind: 'food' | 'service';
   itemId: number;
-  nameFr: string;
-  nameEn: string;
-  options: { id: number; name: { fr: string; en: string }; priceDeltaMinor: number }[];
+  name: { fr: string; en: string; es: string };
+  options: { id: number; name: { fr: string; en: string; es: string }; priceDeltaMinor: number }[];
   unitPriceMinor: number;
   quantity: number;
   lineTotalMinor: number;
@@ -165,8 +165,7 @@ export function quoteFood(db: DB, propertyId: string, currency: string, input: F
     lines.push({
       itemKind: 'food',
       itemId: item.id,
-      nameFr: item.name_fr,
-      nameEn: item.name_en,
+      name: L(item, 'name'),
       options: selected,
       unitPriceMinor: unit,
       quantity: line.quantity,
@@ -186,41 +185,43 @@ export interface ServiceLineInput {
   expectedComplimentary?: boolean;
 }
 
-export function quoteService(db: DB, propertyId: string, currency: string, line: ServiceLineInput): Quote {
+/** One combined Services order: every checked item becomes a line of the same ticket. */
+export function quoteService(db: DB, propertyId: string, currency: string, input: ServiceLineInput[]): Quote {
   const issues: QuoteLineIssue[] = [];
-  const item = db
-    .prepare('SELECT * FROM service_items WHERE id = ? AND property_id = ? AND active = 1')
-    .get(line.itemId, propertyId) as Record<string, any> | undefined;
-  if (!item) return { lines: [], totalMinor: 0, currency, issues: [{ index: 0, itemId: line.itemId, issue: 'unavailable' }] };
-  if (!item.available) issues.push({ index: 0, itemId: item.id, issue: 'unavailable' });
-  if (line.quantity > item.max_quantity) issues.push({ index: 0, itemId: item.id, issue: 'quantity_limit', maxQuantity: item.max_quantity });
-  const complimentary = !!item.complimentary;
-  const unit = complimentary ? 0 : item.price_minor;
-  // A request the guest saw as complimentary must never silently gain a charge.
-  if (line.expectedComplimentary !== false && !complimentary) {
-    issues.push({ index: 0, itemId: item.id, issue: 'became_chargeable', currentUnitPriceMinor: unit });
-  } else if (!complimentary && line.expectedUnitPriceMinor !== undefined && line.expectedUnitPriceMinor !== unit) {
-    issues.push({ index: 0, itemId: item.id, issue: 'price_changed', quotedUnitPriceMinor: line.expectedUnitPriceMinor, currentUnitPriceMinor: unit });
-  }
-  if (item.currency !== currency) throw badRequest('currency_mismatch');
-  const details = item.allow_details && line.details ? line.details : null;
-  return {
-    lines: [
-      {
-        itemKind: 'service',
-        itemId: item.id,
-        nameFr: item.name_fr,
-        nameEn: item.name_en,
-        options: [],
-        unitPriceMinor: unit,
-        quantity: line.quantity,
-        lineTotalMinor: unit * line.quantity,
-        complimentary,
-        details,
-      },
-    ],
-    totalMinor: unit * line.quantity,
-    currency,
-    issues,
-  };
+  const lines: QuotedLine[] = [];
+  const seen = new Set<number>();
+  input.forEach((line, index) => {
+    if (seen.has(line.itemId)) throw badRequest('duplicate_item', { index });
+    seen.add(line.itemId);
+    const item = db
+      .prepare('SELECT * FROM service_items WHERE id = ? AND property_id = ? AND active = 1')
+      .get(line.itemId, propertyId) as Record<string, any> | undefined;
+    if (!item) {
+      issues.push({ index, itemId: line.itemId, issue: 'unavailable' });
+      return;
+    }
+    if (!item.available) issues.push({ index, itemId: item.id, issue: 'unavailable' });
+    if (line.quantity > item.max_quantity) issues.push({ index, itemId: item.id, issue: 'quantity_limit', maxQuantity: item.max_quantity });
+    const complimentary = !!item.complimentary;
+    const unit = complimentary ? 0 : item.price_minor;
+    // A request the guest saw as complimentary must never silently gain a charge.
+    if (line.expectedComplimentary !== false && !complimentary) {
+      issues.push({ index, itemId: item.id, issue: 'became_chargeable', currentUnitPriceMinor: unit });
+    } else if (!complimentary && line.expectedUnitPriceMinor !== undefined && line.expectedUnitPriceMinor !== unit) {
+      issues.push({ index, itemId: item.id, issue: 'price_changed', quotedUnitPriceMinor: line.expectedUnitPriceMinor, currentUnitPriceMinor: unit });
+    }
+    if (item.currency !== currency) throw badRequest('currency_mismatch');
+    lines.push({
+      itemKind: 'service',
+      itemId: item.id,
+      name: L(item, 'name'),
+      options: [],
+      unitPriceMinor: unit,
+      quantity: line.quantity,
+      lineTotalMinor: unit * line.quantity,
+      complimentary,
+      details: item.allow_details && line.details ? line.details : null,
+    });
+  });
+  return { lines, totalMinor: lines.reduce((sum, l) => sum + l.lineTotalMinor, 0), currency, issues };
 }

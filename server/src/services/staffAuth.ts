@@ -15,6 +15,7 @@ export interface StaffContext {
   propertyName: string;
   nameFr: string;
   nameEn: string;
+  nameEs: string;
   deviceId: number | null;
   deviceName: string | null;
 }
@@ -56,7 +57,7 @@ export function loadStaff(ctx: AppContext, req: Request): StaffContext {
   const row = ctx.db
     .prepare(
       `SELECT s.id AS session_id, s.expires_at, s.revoked_at, s.device_id, s.last_seen_at, a.id AS account_id, a.role, a.property_id, a.active,
-              a.display_name_fr, a.display_name_en, p.name AS property_name, d.name AS device_name, d.active AS device_active
+              a.display_name_fr, a.display_name_en, a.display_name_es, p.name AS property_name, d.name AS device_name, d.active AS device_active
        FROM staff_sessions s JOIN department_accounts a ON a.id = s.account_id JOIN properties p ON p.id = a.property_id
        LEFT JOIN devices d ON d.id = s.device_id
        WHERE s.token_hash = ?`,
@@ -76,6 +77,7 @@ export function loadStaff(ctx: AppContext, req: Request): StaffContext {
     propertyName: row.property_name,
     nameFr: row.display_name_fr,
     nameEn: row.display_name_en,
+    nameEs: row.display_name_es,
     deviceId: row.device_id,
     deviceName: row.device_name,
   };

@@ -26,6 +26,8 @@ import {
   toGuestDto,
 } from '../services/requests';
 import * as S from './schemas';
+import { listContent, listLocations, listMenu, listServices } from '../services/catalogue';
+import { propertySummary } from './public';
 import type { GuestMeDto } from '../../../shared/src/api';
 
 export function guestRoutes(ctx: AppContext): Router {
@@ -72,7 +74,7 @@ export function guestRoutes(ctx: AppContext): Router {
 
   r.patch('/language', (req, res) => {
     const g = loadGuest(ctx, req);
-    const { language } = parse(S.activateBody.pick({ language: true }), req.body);
+    const { language } = parse(S.languageBody, req.body);
     ctx.db.prepare('UPDATE guest_sessions SET language = ? WHERE id = ?').run(language, g.session.id);
     res.json({ ok: true });
   });
@@ -86,6 +88,25 @@ export function guestRoutes(ctx: AppContext): Router {
     }
     clearGuestCookie(ctx, res);
     res.json({ ok: true });
+  });
+
+  // ---- Hotel guide and catalogue: validated guests only, scoped to their stay's hotel ----
+  r.get('/catalog/property', (req, res) => {
+    res.json({ property: propertySummary(ctx, ordering(req).property) });
+  });
+  r.get('/catalog/content', (req, res) => {
+    res.json({ content: listContent(ctx.db, ordering(req).property.id, true) });
+  });
+  r.get('/catalog/menu', (req, res) => {
+    const p = ordering(req).property;
+    res.json({ currency: p.currency, categories: listMenu(ctx.db, p.id) });
+  });
+  r.get('/catalog/services', (req, res) => {
+    const p = ordering(req).property;
+    res.json({ currency: p.currency, services: listServices(ctx.db, p.id) });
+  });
+  r.get('/catalog/locations', (req, res) => {
+    res.json({ locations: listLocations(ctx.db, ordering(req).property.id) });
   });
 
   r.get('/requests', (req, res) => {

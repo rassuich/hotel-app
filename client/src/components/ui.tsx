@@ -1,35 +1,24 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useI18n } from '../i18n';
+import { useI18n, LANGUAGE_NAMES } from '../i18n';
 import { useOnline } from '../lib/live';
 import { guestSteps, type GuestProgressKey, type RequestType } from '../../../shared/src/states';
+import { LANGS } from '../../../shared/src/api';
 
-const icon = (d: ReactNode) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {d}
-  </svg>
-);
-export const Icons = {
-  home: icon(<><path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></>),
-  food: icon(<><path d="M4 15h16" /><path d="M6 15a6 6 0 0 1 12 0" /><path d="M12 7V5" /><path d="M3 18h18" /></>),
-  services: icon(<><path d="M4 7h16v12H4z" /><path d="M8 7V5h8v2" /><path d="M4 12h16" /></>),
-  requests: icon(<><path d="M8 4h8l1 2h2v15H5V6h2z" /><path d="M9 11h6M9 15h4" /></>),
-  stay: icon(<><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></>),
-  pin: icon(<><path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z" /><circle cx="12" cy="9" r="2.5" /></>),
-};
-
-export function Spinner() {
+export function Loading() {
   const { t } = useI18n();
   return (
-    <div role="status" aria-live="polite">
-      <div className="spinner" />
-      <span className="visually-hidden">{t('app.loading')}</span>
+    <div className="loading" role="status" aria-live="polite">
+      {t('app.loading')}
     </div>
   );
 }
+/** Kept for existing call sites. */
+export const Spinner = Loading;
 
-export function Notice({ kind = 'info', children, role }: { kind?: 'info' | 'warn' | 'bad' | 'ok' | 'demo'; children: ReactNode; role?: string }) {
+export function Notice({ kind = 'info', children, role }: { kind?: 'info' | 'warn' | 'bad' | 'ok' | 'plain'; children: ReactNode; role?: string }) {
+  const cls = kind === 'bad' ? 'note bad' : kind === 'ok' ? 'note ok' : kind === 'plain' ? 'note plain' : 'note';
   return (
-    <div className={`notice notice-${kind}`} role={role ?? (kind === 'bad' ? 'alert' : undefined)}>
+    <div className={cls} role={role ?? (kind === 'bad' ? 'alert' : undefined)}>
       {children}
     </div>
   );
@@ -41,7 +30,7 @@ export function ErrorNotice({ code, onRetry }: { code?: string; onRetry?: () => 
     <Notice kind="bad">
       <p className="mb0">{err(code)}</p>
       {onRetry && (
-        <button className="btn-secondary btn-sm mt" onClick={onRetry}>
+        <button className="btn-text" onClick={onRetry}>
           {t('app.retry')}
         </button>
       )}
@@ -49,12 +38,28 @@ export function ErrorNotice({ code, onRetry }: { code?: string; onRetry?: () => 
   );
 }
 
-export function LangSwitch({ className = 'lang-btn' }: { className?: string }) {
+/** FR · EN · ES, each labelled in its own language. `compact` renders a small select for phone mastheads. */
+export function LangSwitch({ compact = false }: { compact?: boolean }) {
   const { lang, setLang, t } = useI18n();
+  if (compact) {
+    return (
+      <select className="lang-select" aria-label={t('app.language')} value={lang} onChange={(e) => setLang(e.target.value as typeof lang)}>
+        {LANGS.map((l) => (
+          <option key={l} value={l} lang={l}>
+            {l.toUpperCase()} — {LANGUAGE_NAMES[l]}
+          </option>
+        ))}
+      </select>
+    );
+  }
   return (
-    <button type="button" className={className} onClick={() => setLang(lang === 'fr' ? 'en' : 'fr')} lang={lang === 'fr' ? 'en' : 'fr'} aria-label={`${t('app.language')}: ${t('app.switchTo')}`}>
-      {lang === 'fr' ? 'EN' : 'FR'}
-    </button>
+    <div className="lang-switch" role="group" aria-label={t('app.language')}>
+      {LANGS.map((l) => (
+        <button key={l} type="button" aria-pressed={lang === l} lang={l} aria-label={LANGUAGE_NAMES[l]} onClick={() => setLang(l)}>
+          {l.toUpperCase()}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -63,7 +68,7 @@ export function OfflineBanner() {
   const { t } = useI18n();
   if (online) return null;
   return (
-    <div className="notice notice-warn banner" role="status">
+    <div className="offline-strip" role="status">
       {t('app.offline')}
     </div>
   );
@@ -84,7 +89,7 @@ export function Stepper({ value, min = 1, max, onChange, label }: { value: numbe
   );
 }
 
-/** Native <dialog> as a bottom sheet: focus handling and Escape come for free. */
+/** Native <dialog>: focus handling and Escape come for free. */
 export function Sheet({ open, onClose, title, children, footer }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
   const { t } = useI18n();
@@ -100,11 +105,9 @@ export function Sheet({ open, onClose, title, children, footer }: { open: boolea
         <>
           <div className="sheet-body">
             <div className="sheet-head">
-              <h2 id="sheet-title" style={{ marginTop: 0 }}>
-                {title}
-              </h2>
-              <button type="button" className="btn-ghost btn-sm" onClick={onClose} aria-label={t('app.close')}>
-                ✕
+              <h2 id="sheet-title">{title}</h2>
+              <button type="button" className="btn-text" onClick={onClose}>
+                {t('app.close')}
               </button>
             </div>
             {children}
@@ -116,7 +119,7 @@ export function Sheet({ open, onClose, title, children, footer }: { open: boolea
   );
 }
 
-export function ProgressBar({ type, progress }: { type: RequestType; progress: GuestProgressKey }) {
+export function Steps({ type, progress }: { type: RequestType; progress: GuestProgressKey }) {
   const { t } = useI18n();
   const steps = guestSteps(type);
   const map: Partial<Record<GuestProgressKey, GuestProgressKey>> = { confirming_in_person: 'confirming', not_reached: 'confirming' };
@@ -124,26 +127,22 @@ export function ProgressBar({ type, progress }: { type: RequestType; progress: G
   const idx = steps.indexOf(current);
   const failed = progress === 'not_reached' || progress === 'declined' || progress === 'cancelled';
   return (
-    <div aria-hidden="true">
-      <div className="progress">
-        {steps.map((s, i) => (
-          <span key={s} className={failed && (i === idx || idx === -1) ? 'fail' : i <= idx ? 'done' : ''} />
-        ))}
-      </div>
-      <div className="steps-labels">
-        {steps.map((s) => (
-          <span key={s}>{t(`progress.step_${s}`)}</span>
-        ))}
-      </div>
-    </div>
+    <ol className="steps" aria-hidden="true">
+      {steps.map((s, i) => (
+        <li key={s} className={failed && (i === idx || idx === -1) ? 'fail' : i <= idx ? 'done' : ''}>
+          {t(`progress.step_${s}`)}
+        </li>
+      ))}
+    </ol>
   );
 }
 
+/** Tone class for the `.state` label of a guest-facing progress key. */
 export function progressTone(p: GuestProgressKey): string {
-  if (p === 'not_reached' || p === 'declined') return 'pill-bad';
-  if (p === 'cancelled') return 'pill-muted';
-  if (p === 'delivered' || p === 'done' || p === 'confirmed') return 'pill-ok';
-  return 'pill-info';
+  if (p === 'not_reached' || p === 'declined') return 'bad';
+  if (p === 'cancelled') return 'idle';
+  if (p === 'delivered' || p === 'done' || p === 'confirmed') return 'ok';
+  return '';
 }
 
 export function Toast({ message, onDone }: { message: string | null; onDone: () => void }) {
@@ -163,4 +162,14 @@ export function Toast({ message, onDone }: { message: string | null; onDone: () 
 export function useToast() {
   const [message, setMessage] = useState<string | null>(null);
   return { message, show: setMessage, clear: () => setMessage(null) };
+}
+
+export function DemoStrip() {
+  const { t } = useI18n();
+  return (
+    <div className="demo-strip" role="note">
+      <strong>Demo</strong>
+      {t('app.demoBanner')}
+    </div>
+  );
 }

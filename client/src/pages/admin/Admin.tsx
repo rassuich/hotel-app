@@ -3,7 +3,7 @@ import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useI18n } from '../../i18n';
 import { ApiError, post } from '../../lib/api';
 import { useQuery } from '../../lib/hooks';
-import { ErrorNotice, Notice, Spinner } from '../../components/ui';
+import { ErrorNotice, Notice, Loading } from '../../components/ui';
 import { useStaff } from '../staff/staffContext';
 import EditableTable, { type Column } from './EditableTable';
 import Stays from './Stays';
@@ -15,18 +15,20 @@ function useCols() {
   const names: Column[] = [
     { key: 'nameFr', label: t('admin.nameFr'), type: 'text', width: 160 },
     { key: 'nameEn', label: t('admin.nameEn'), type: 'text', width: 160 },
+    { key: 'nameEs', label: t('admin.nameEs'), type: 'text', width: 160 },
   ];
   return { t, names };
 }
 
 function Food() {
   const { t, names } = useCols();
+  const { l } = useI18n();
   const [v, setV] = useState(0);
   const q = useQuery<{ categories: Row[]; items: Row[]; groups: Row[]; options: Row[] }>('/api/admin/food', [v]);
   const [itemId, setItemId] = useState<number | null>(null);
-  if (!q.data) return <Spinner />;
+  if (!q.data) return <Loading />;
   const reload = () => setV((x) => x + 1);
-  const catOptions = q.data.categories.map((c) => ({ value: c.id as number, label: c.nameFr as string }));
+  const catOptions = q.data.categories.map((c) => ({ value: c.id as number, label: l({ fr: c.nameFr, en: c.nameEn, es: c.nameEs }) }));
   const groups = q.data.groups.filter((g) => g.foodItemId === itemId);
   return (
     <>
@@ -48,6 +50,7 @@ function Food() {
           ...names,
           { key: 'descriptionFr', label: t('admin.descriptionFr'), type: 'textarea', width: 180 },
           { key: 'descriptionEn', label: t('admin.descriptionEn'), type: 'textarea', width: 180 },
+          { key: 'descriptionEs', label: t('admin.descriptionEs'), type: 'textarea', width: 180 },
           { key: 'priceMinor', label: t('admin.price'), type: 'money', width: 90 },
           { key: 'available', label: t('admin.available'), type: 'bool' },
           { key: 'active', label: t('admin.active'), type: 'bool' },
@@ -58,7 +61,7 @@ function Food() {
         <option value="">—</option>
         {q.data.items.map((i) => (
           <option key={i.id} value={i.id}>
-            {i.nameFr}
+            {l({ fr: i.nameFr, en: i.nameEn, es: i.nameEs })}
           </option>
         ))}
       </select>
@@ -73,7 +76,7 @@ function Food() {
           />
           {groups.map((g) => (
             <div key={g.id}>
-              <h3>{g.nameFr}</h3>
+              <h3>{l({ fr: g.nameFr, en: g.nameEn, es: g.nameEs })}</h3>
               <EditableTable
                 rows={q.data!.options.filter((o) => o.groupId === g.id)}
                 endpoint="/api/admin/food/options"
@@ -93,7 +96,7 @@ function Services() {
   const { t, names } = useCols();
   const [v, setV] = useState(0);
   const q = useQuery<{ services: Row[] }>('/api/admin/services', [v]);
-  if (!q.data) return <Spinner />;
+  if (!q.data) return <Loading />;
   return (
     <EditableTable
       rows={q.data.services}
@@ -104,6 +107,7 @@ function Services() {
         ...names,
         { key: 'descriptionFr', label: t('admin.descriptionFr'), type: 'textarea', width: 160 },
         { key: 'descriptionEn', label: t('admin.descriptionEn'), type: 'textarea', width: 160 },
+        { key: 'descriptionEs', label: t('admin.descriptionEs'), type: 'textarea', width: 160 },
         { key: 'complimentary', label: t('admin.complimentary'), type: 'bool' },
         { key: 'priceMinor', label: t('admin.fee'), type: 'money', width: 90 },
         { key: 'maxQuantity', label: t('admin.maxQuantity'), type: 'int', width: 70 },
@@ -119,7 +123,7 @@ function Content() {
   const { t } = useI18n();
   const [v, setV] = useState(0);
   const q = useQuery<{ content: Row[] }>('/api/admin/content', [v]);
-  if (!q.data) return <Spinner />;
+  if (!q.data) return <Loading />;
   const kinds = (['info', 'hours', 'contact', 'event'] as const).map((k) => ({ value: k, label: t(`admin.kind_${k}`) }));
   return (
     <EditableTable
@@ -131,8 +135,10 @@ function Content() {
         { key: 'kind', label: t('admin.kind'), type: 'select', options: kinds },
         { key: 'titleFr', label: t('admin.titleFr'), type: 'text', width: 160 },
         { key: 'titleEn', label: t('admin.titleEn'), type: 'text', width: 160 },
+        { key: 'titleEs', label: t('admin.titleEs'), type: 'text', width: 160 },
         { key: 'bodyFr', label: t('admin.bodyFr'), type: 'textarea', width: 200 },
         { key: 'bodyEn', label: t('admin.bodyEn'), type: 'textarea', width: 200 },
+        { key: 'bodyEs', label: t('admin.bodyEs'), type: 'textarea', width: 200 },
         { key: 'startsAt', label: t('admin.startsAt'), type: 'datetime' },
         { key: 'public', label: t('admin.public'), type: 'bool' },
         { key: 'active', label: t('admin.active'), type: 'bool' },
@@ -173,6 +179,7 @@ function Locations() {
           columns={[
             { key: 'labelFr', label: t('admin.labelFr'), type: 'text', width: 200 },
             { key: 'labelEn', label: t('admin.labelEn'), type: 'text', width: 200 },
+            { key: 'labelEs', label: t('admin.labelEs'), type: 'text', width: 200 },
             { key: 'sort', label: '#', type: 'int', width: 50 },
             { key: 'active', label: t('admin.active'), type: 'bool' },
           ]}
@@ -189,7 +196,7 @@ function Devices() {
   const [pw, setPw] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  if (!q.data) return <Spinner />;
+  if (!q.data) return <Loading />;
   const dept = q.data.accounts.filter((a) => a.role !== 'admin');
   return (
     <>
@@ -208,7 +215,7 @@ function Devices() {
           <tbody>
             {q.data.accounts.map((a) => (
               <tr key={a.id}>
-                <td>{l({ fr: a.displayNameFr, en: a.displayNameEn })}</td>
+                <td>{l({ fr: a.displayNameFr, en: a.displayNameEn, es: a.displayNameEs })}</td>
                 <td>
                   <code>{a.username}</code>
                 </td>
@@ -245,7 +252,7 @@ function Devices() {
         onSaved={() => setV((x) => x + 1)}
         createDefaults={{ accountId: dept[0]?.id, active: true }}
         columns={[
-          { key: 'accountId', label: t('admin.account'), type: 'select', createOnly: false, options: dept.map((a) => ({ value: a.id as string, label: l({ fr: a.displayNameFr, en: a.displayNameEn }) })) },
+          { key: 'accountId', label: t('admin.account'), type: 'select', createOnly: false, options: dept.map((a) => ({ value: a.id as string, label: l({ fr: a.displayNameFr, en: a.displayNameEn, es: a.displayNameEs }) })) },
           { key: 'name', label: t('admin.deviceName'), type: 'text', width: 220 },
           { key: 'active', label: t('admin.active'), type: 'bool' },
         ].map((c) => (c.key === 'accountId' ? { ...c, createOnly: true } : c)) as Column[]}
@@ -257,24 +264,24 @@ function Devices() {
 function Integrations() {
   const { t, dateTime } = useI18n();
   const q = useQuery<any>('/api/admin/integrations');
-  if (!q.data) return <Spinner />;
+  if (!q.data) return <Loading />;
   const d = q.data;
   return (
     <div className="stack">
-      <div className="card">
+      <div className="panel">
         <h3>{t('admin.pms')}</h3>
         <p>{t('admin.pmsStatus_manual')}</p>
         {d.pms.lastChangeAt && <small>{t('admin.pmsLastChange', { time: dateTime(d.pms.lastChangeAt) })}</small>}
       </div>
-      <div className="card">
+      <div className="panel">
         <h3>{t('admin.bills')}</h3>
         <p className="mb0">{d.bills.configured ? d.bills.provider : t('admin.billsUnconfigured')}</p>
       </div>
-      <div className="card">
+      <div className="panel">
         <h3>{t('admin.push')}</h3>
         <p className="mb0">{d.push.configured ? t('admin.pushConfigured') : t('admin.pushUnconfigured')}</p>
       </div>
-      <div className="card">
+      <div className="panel">
         <h3>{t('admin.ordering')}</h3>
         <p>{d.ordering.enabled ? t('admin.orderingEnabled') : t('admin.orderingDisabled')}</p>
         <p>{t('admin.cutoff', { value: d.ordering.scheduledDepartureCutoffHours === null ? t('admin.cutoffOff') : `${d.ordering.scheduledDepartureCutoffHours} h` })}</p>

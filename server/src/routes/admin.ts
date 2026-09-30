@@ -53,21 +53,25 @@ const contentSchema = z.object({
   kind: z.enum(['info', 'hours', 'contact', 'event']),
   titleFr: text().min(1),
   titleEn: text().min(1),
+  titleEs: text().default(''),
   bodyFr: text(4000).default(''),
   bodyEn: text(4000).default(''),
+  bodyEs: text(4000).default(''),
   startsAt: z.string().nullish(),
   endsAt: z.string().nullish(),
   public: z.boolean().default(true),
   active: z.boolean().default(true),
   sort: z.number().int().default(0),
 });
-const categorySchema = z.object({ nameFr: text().min(1), nameEn: text().min(1), sort: z.number().int().default(0), active: z.boolean().default(true) });
+const categorySchema = z.object({ nameFr: text().min(1), nameEn: text().min(1), nameEs: text().default(''), sort: z.number().int().default(0), active: z.boolean().default(true) });
 const foodItemSchema = z.object({
   categoryId: z.number().int().positive(),
   nameFr: text().min(1),
   nameEn: text().min(1),
+  nameEs: text().default(''),
   descriptionFr: text(1000).default(''),
   descriptionEn: text(1000).default(''),
+  descriptionEs: text(1000).default(''),
   priceMinor: z.number().int().min(0),
   available: z.boolean().default(true),
   active: z.boolean().default(true),
@@ -77,6 +81,7 @@ const groupSchema = z.object({
   foodItemId: z.number().int().positive(),
   nameFr: text().min(1),
   nameEn: text().min(1),
+  nameEs: text().default(''),
   minSelect: z.number().int().min(0).max(10).default(0),
   maxSelect: z.number().int().min(1).max(10).default(1),
   sort: z.number().int().default(0),
@@ -85,6 +90,7 @@ const optionSchema = z.object({
   groupId: z.number().int().positive(),
   nameFr: text().min(1),
   nameEn: text().min(1),
+  nameEs: text().default(''),
   priceDeltaMinor: z.number().int().min(0).default(0),
   available: z.boolean().default(true),
   sort: z.number().int().default(0),
@@ -92,8 +98,10 @@ const optionSchema = z.object({
 const serviceSchema = z.object({
   nameFr: text().min(1),
   nameEn: text().min(1),
+  nameEs: text().default(''),
   descriptionFr: text(1000).default(''),
   descriptionEn: text(1000).default(''),
+  descriptionEs: text(1000).default(''),
   complimentary: z.boolean().default(true),
   priceMinor: z.number().int().min(0).default(0),
   maxQuantity: z.number().int().min(1).max(50).default(4),
@@ -106,6 +114,7 @@ const roomSchema = z.object({ label: text(20).min(1), active: z.boolean().defaul
 const locationSchema = z.object({
   labelFr: text(80).min(1),
   labelEn: text(80).min(1),
+  labelEs: text(80).default(''),
   active: z.boolean().default(true),
   sort: z.number().int().default(0),
 });

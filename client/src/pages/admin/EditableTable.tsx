@@ -147,8 +147,8 @@ export default function EditableTable({
                     <button className="btn-secondary btn-sm" onClick={() => save(r)} disabled={!drafts[r.id]}>
                       {t('app.save')}
                     </button>
-                    {savedId === String(r.id) && !drafts[r.id] && <span className="pill pill-ok">{t('admin.saved')}</span>}
-                    {r[demoKey] ? <span className="pill pill-warn">{t('admin.demo')}</span> : null}
+                    {savedId === String(r.id) && !drafts[r.id] && <span className="state ok">{t('admin.saved')}</span>}
+                    {r[demoKey] ? <span className="state warn">{t('admin.demo')}</span> : null}
                   </div>
                 </td>
               </tr>

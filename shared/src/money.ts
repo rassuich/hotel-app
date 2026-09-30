@@ -14,7 +14,8 @@ export function formatMoney(amountMinor: number, currency: string, locale: strin
   const digits = minorDigits(currency);
   const value = amountMinor / 10 ** digits;
   try {
-    return new Intl.NumberFormat(locale === 'fr' ? 'fr-MA' : 'en-GB', {
+    const tag = locale === 'fr' ? 'fr-MA' : locale === 'es' ? 'es-ES' : 'en-GB';
+    return new Intl.NumberFormat(tag, {
       style: 'currency',
       currency,
       minimumFractionDigits: digits,

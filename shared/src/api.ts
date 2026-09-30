@@ -10,10 +10,13 @@ import type {
   RequestType,
 } from './states';
 
-export type Lang = 'fr' | 'en';
+export type Lang = 'fr' | 'en' | 'es';
+export const LANGS: readonly Lang[] = ['fr', 'en', 'es'];
+/** Bilingual content plus Spanish; an empty string means "not translated yet". */
 export interface Localized {
   fr: string;
   en: string;
+  es: string;
 }
 
 export interface PropertySummary {
@@ -24,7 +27,6 @@ export interface PropertySummary {
   tagline: Localized;
   requestsEnabled: boolean;
   currency: string;
-  approxLocation: { lat: number; lng: number } | null;
   /** True while any sample/demo fixture is still configured for this property. */
   hasDemoContent: boolean;
 }

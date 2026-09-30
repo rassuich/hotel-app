@@ -380,12 +380,62 @@ describe('simple services', () => {
     expect((await g.get(`/api/guest/requests/${t.ref}`)).body.request.progress).toBe('done');
   });
 
+  it('combines several checked items into ONE ticket for Reception', async () => {
+    const g = await guest(env);
+    const [tb, towels, pillow, pressing] = ['Toothbrush', 'Towels', 'Extra pillow', 'Pressing (paid example)'].map((n) => serviceItem(env, n));
+    const r = await g.post('/api/guest/requests/service', {
+      idempotencyKey: key(),
+      lines: [
+        { itemId: tb.id, quantity: 2, expectedComplimentary: true },
+        { itemId: towels.id, quantity: 3, details: 'Bath', expectedComplimentary: true },
+        { itemId: pillow.id, quantity: 1, expectedComplimentary: true },
+        { itemId: pressing.id, quantity: 1, expectedComplimentary: false, expectedUnitPriceMinor: pressing.price_minor },
+      ],
+      destination: { kind: 'room' },
+      notes: 'After 6 pm please',
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.request.lines.map((l: { quantity: number }) => l.quantity)).toEqual([2, 3, 1, 1]);
+    expect(r.body.request.totalMinor).toBe(pressing.price_minor);
+    expect(env.ctx.db.prepare(`SELECT COUNT(*) FROM requests WHERE type = 'service'`).pluck().get()).toBe(1);
+    const rc = await reception(env);
+    const t = await staffTicket(rc, r.body.request.ref);
+    expect(t.lines).toHaveLength(4);
+    expect(t.notes).toBe('After 6 pm please');
+  });
+
+  it('rejects the whole order if any line changed, and duplicate lines', async () => {
+    const g = await guest(env);
+    const [tb, towels] = ['Toothbrush', 'Towels'].map((n) => serviceItem(env, n));
+    env.ctx.db.prepare('UPDATE service_items SET available = 0 WHERE id = ?').run(towels.id);
+    const changed = await g.post('/api/guest/requests/service', {
+      idempotencyKey: key(),
+      lines: [
+        { itemId: tb.id, quantity: 1, expectedComplimentary: true },
+        { itemId: towels.id, quantity: 1, expectedComplimentary: true },
+      ],
+      destination: { kind: 'room' },
+    });
+    expect(changed.status).toBe(409);
+    expect(changed.body.error.details.issues).toEqual([expect.objectContaining({ index: 1, issue: 'unavailable' })]);
+    const dup = await g.post('/api/guest/requests/service', {
+      idempotencyKey: key(),
+      lines: [
+        { itemId: tb.id, quantity: 1, expectedComplimentary: true },
+        { itemId: tb.id, quantity: 1, expectedComplimentary: true },
+      ],
+      destination: { kind: 'room' },
+    });
+    expect(dup.body.error.code).toBe('duplicate_item');
+    expect(env.ctx.db.prepare('SELECT COUNT(*) FROM requests').pluck().get()).toBe(0);
+  });
+
   it('enforces quantity limits', async () => {
     const g = await guest(env);
     const tb = serviceItem(env, 'Toothbrush');
     const r = await g.post('/api/guest/requests/service', {
       idempotencyKey: key(),
-      line: { itemId: tb.id, quantity: 9, expectedComplimentary: true },
+      lines: [{ itemId: tb.id, quantity: 9, expectedComplimentary: true }],
       destination: { kind: 'room' },
     });
     expect(r.status).toBe(409);
@@ -397,7 +447,7 @@ describe('simple services', () => {
     const pressing = serviceItem(env, 'Pressing (paid example)');
     const r = await g.post('/api/guest/requests/service', {
       idempotencyKey: key(),
-      line: { itemId: pressing.id, quantity: 1, expectedComplimentary: false, expectedUnitPriceMinor: pressing.price_minor },
+      lines: [{ itemId: pressing.id, quantity: 1, expectedComplimentary: false, expectedUnitPriceMinor: pressing.price_minor }],
       destination: { kind: 'room' },
     });
     expect(r.status).toBe(201);

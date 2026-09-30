@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import en from './en.json';
 import fr from './fr.json';
+import es from './es.json';
 import { translate } from './index';
 import { FOOD_STATES, SERVICE_STATES } from '../../../shared/src/states';
 
@@ -19,24 +20,37 @@ function files(dir: string, ext: RegExp): string[] {
 
 const enKeys = new Set(flat(en));
 const frKeys = new Set(flat(fr));
+const esKeys = new Set(flat(es));
+const LANGS = ['fr', 'en', 'es'] as const;
+/** Key families built at runtime (e.g. t(`staff.state_${state}`)). */
+const DYNAMIC = ['errors.', 'progress.', 'staff.state_', 'requests.attempt_', 'staff.posStatus_', 'cart.issue_', 'staff.attention_', 'staff.push_', 'admin.kind_', 'admin.filter_', 'staff.sections_', 'admin.pmsStatus_'];
+const clientSource = () => files(path.resolve(__dirname, '..'), /\.tsx?$/).map((f) => readFileSync(f, 'utf8')).join('\n');
 
 describe('translations', () => {
-  it('French and English have exactly the same keys, all non-empty', () => {
-    expect([...enKeys].filter((k) => !frKeys.has(k))).toEqual([]);
-    expect([...frKeys].filter((k) => !enKeys.has(k))).toEqual([]);
+  it('French, English and Spanish have exactly the same keys, all non-empty', () => {
+    for (const other of [frKeys, esKeys]) {
+      expect([...enKeys].filter((k) => !other.has(k))).toEqual([]);
+      expect([...other].filter((k) => !enKeys.has(k))).toEqual([]);
+    }
+    for (const k of enKeys) for (const l of LANGS) expect(translate(l, k).trim(), `${l}:${k}`).not.toBe('');
+  });
+
+  it('uses the same {placeholders} in every language', () => {
+    const ph = (s: string) => (s.match(/\{\w+\}/g) ?? []).sort().join(',');
     for (const k of enKeys) {
-      expect(translate('en', k).trim(), k).not.toBe('');
-      expect(translate('fr', k).trim(), k).not.toBe('');
+      expect(ph(translate('fr', k)), `fr:${k}`).toBe(ph(translate('en', k)));
+      expect(ph(translate('es', k)), `es:${k}`).toBe(ph(translate('en', k)));
     }
   });
 
-  it('uses the same {placeholders} in both languages', () => {
-    const ph = (s: string) => (s.match(/\{\w+\}/g) ?? []).sort().join(',');
-    for (const k of enKeys) expect(ph(translate('fr', k)), k).toBe(ph(translate('en', k)));
+  it('has no unused keys (outside runtime-built families)', () => {
+    const src = clientSource();
+    const used = new Set([...src.matchAll(/\bt\(\s*'([a-zA-Z_.]+)'/g)].map((m) => m[1]));
+    expect([...enKeys].filter((k) => !used.has(k) && !DYNAMIC.some((d) => k.startsWith(d)))).toEqual([]);
   });
 
   it('every literal t("...") key used in the client exists', () => {
-    const src = files(path.resolve(__dirname, '..'), /\.tsx?$/).map((f) => readFileSync(f, 'utf8')).join('\n');
+    const src = clientSource();
     const used = [...src.matchAll(/\bt\(\s*'([a-zA-Z_.]+)'/g)].map((m) => m[1]);
     expect(used.length).toBeGreaterThan(100);
     expect(used.filter((k) => !enKeys.has(k))).toEqual([]);
@@ -53,7 +67,7 @@ describe('translations', () => {
     for (const f of ['room_moved', 'checked_out']) expect(enKeys.has(`staff.attention_${f}`)).toBe(true);
   });
 
-  it('translates every error code the server can return, in both languages', () => {
+  it('translates every error code the server can return, in every language', () => {
     const server = files(path.resolve(__dirname, '../../../server/src'), /\.ts$/).map((f) => readFileSync(f, 'utf8')).join('\n');
     const codes = new Set<string>();
     for (const m of server.matchAll(/(?:ApiError\(\d+,\s*|notFound\(|forbidden\(|conflict\(|badRequest\(|unauthorized\()'([a-z_]+)'/g)) codes.add(m[1]);
@@ -67,5 +81,6 @@ describe('translations', () => {
   it('interpolates parameters', () => {
     expect(translate('fr', 'home.greeting', { hotel: "Le Palace d'Anfa" })).toBe("Bienvenue au Le Palace d'Anfa");
     expect(translate('en', 'requests.ref', { ref: 'PA-0001' })).toBe('Ref. PA-0001');
+    expect(translate('es', 'services.selectedCount', { count: 3 })).toContain('3');
   });
 });

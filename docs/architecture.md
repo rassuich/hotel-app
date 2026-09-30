@@ -88,6 +88,25 @@ call* revalidates session, stay, room revision and ticket state, then creates at
 the ticket back to `received` (unowned) and re-alerts the department. It cannot reopen confirmed,
 POS-entered, completed or cancelled work.
 
+## Guest-only access and languages
+
+- The guest app has one entry point, the **gate** (`/`, `/activate`): language choice
+  (FR/EN/ES, stored on the device), then validation. Every `/h/*` route redirects there without a
+  session. The catalogue lives under `/api/guest/catalog/*` (property, content, menu, services,
+  locations) and requires an ordering session scoped to the stay's hotel; `/api/public/*` only
+  exposes the push key and a hotel's name/city (to brand the gate of a hotel-specific link).
+- **Validation code**: every credential has a QR token (43 chars, 256 bits) *and* a typed code —
+  12 Crockford base32 characters (60 bits) shown as `XXXX-XXXX-XXXX`, normalised for case,
+  spaces/dashes and look-alikes (O→0, I/L→1). Both are stored only as SHA-256 hashes on the same
+  `activation_credentials` row, so rotation, room moves and checkout revoke both. A typed code
+  always requires the room number; the QR follows the hotel's `activation_check` setting.
+- **Spanish**: migration `002` adds `*_es` columns to all bilingual content (and request-line
+  snapshots). An empty Spanish field falls back to English, then French, in the apps.
+- **Brand themes** are data in `shared/src/brands.ts`: charter values verbatim, plus derived tokens
+  (tint, muted text, rules, readable accent text) computed from each brand's own colours. The client
+  applies them as CSS variables for the stay's hotel, the account's hotel for staff, or the group
+  identity on the gate.
+
 ## Stay lifecycle and access
 
 - The **private QR** contains only a 256-bit random token (`/activate?p=<property>#t=<token>`). The
@@ -140,7 +159,8 @@ names/options/prices, so later edits never change history.
 
 ## Implementation defaults chosen
 
-- One food ticket per cart; one Services ticket per service request.
+- One food ticket per cart; one Services ticket per checklist submission (all ticked items as
+  lines of the same ticket; a changed/unavailable item rejects the whole submission for review).
 - Services and food can go to the room or a labelled pool location.
 - Request history is shared by all devices of a stay.
 - Staff amendments are recorded as events with an optional new total; original lines stay intact.
@@ -153,7 +173,7 @@ names/options/prices, so later edits never change history.
 
 | Check | Where |
 |---|---|
-| Public menus without login; private data needs the right stay | `activation.test.ts` (public content, requires activation), `requests.test.ts` (another stay's ref → 404), e2e #1 |
+| Guests only: nothing visible/served before validation; private data needs the right stay | `activation.test.ts` (guest-only access, catalogue scoping, typed code), `requests.test.ts` (another stay's ref → 404), `lifecycle.test.ts` (post-stay has no catalogue), e2e #1 |
 | Reception QR activates multiple devices; public QR cannot authenticate | `activation.test.ts`, e2e #1–#2 |
 | Room move revokes sessions/QR; checkout blocks submission & callback from an old page | `lifecycle.test.ts` (room move, checkout), `resilience.test.ts` (SSE closed), e2e #6 |
 | Reused room exposes nothing from the previous stay | `lifecycle.test.ts` › room reuse |
@@ -162,8 +182,8 @@ names/options/prices, so later edits never change history.
 | Double submission / lost response → one request | `requests.test.ts` › idempotent submission, cart key reuse (`client.test.ts`) |
 | Failed confirmation prevents delivery and persists the notice | `requests.test.ts` › confirmation not received |
 | Callback reuses the ticket, one attempt under concurrent taps | `requests.test.ts` › callbacks, e2e #2 |
-| Services need no call; housekeeping and completion separate | `requests.test.ts` › simple services, e2e #3 |
+| Services need no call; several items become one ticket; housekeeping and completion separate | `requests.test.ts` › simple services, e2e #3 |
 | Pool labels and in-person confirmation | `requests.test.ts` › pool delivery, e2e #4 |
 | Restart / missed alerts keep tickets and recoverable notifications | `resilience.test.ts` › server restart, SSE tests |
-| Both languages cover core flows and errors; offline never auto-submits | `i18n.test.ts` (parity, every used key, every server error code), e2e #5 and #7, `client.test.ts` (SW policy) |
+| FR/EN/ES cover core flows and errors; offline never auto-submits | `i18n.test.ts` (3-way parity, placeholders, every used key, every server error code), e2e #5 and #7, `client.test.ts` (SW policy, content fallback, brand contrast) |
 | Unconfigured PMS/bills/push represented honestly with fallbacks | `resilience.test.ts` › integrations, `lifecycle.test.ts` › bill access |

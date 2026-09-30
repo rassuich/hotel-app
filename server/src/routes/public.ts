@@ -2,12 +2,11 @@ import { Router } from 'express';
 import type { AppContext } from '../context';
 import { notFound } from '../lib/errors';
 import { getProperty, type PropertyRow } from '../services/rows';
-import { listContent, listLocations, listMenu, listServices } from '../services/catalogue';
 import type { PropertySummary } from '../../../shared/src/api';
 
 const CITY_LABEL = {
-  casablanca: { fr: 'Casablanca', en: 'Casablanca' },
-  marrakech: { fr: 'Marrakech', en: 'Marrakesh' },
+  casablanca: { fr: 'Casablanca', en: 'Casablanca', es: 'Casablanca' },
+  marrakech: { fr: 'Marrakech', en: 'Marrakesh', es: 'Marrakech' },
 };
 
 export function propertySummary(ctx: AppContext, p: PropertyRow): PropertySummary {
@@ -16,10 +15,9 @@ export function propertySummary(ctx: AppContext, p: PropertyRow): PropertySummar
     name: p.name,
     city: p.city,
     cityLabel: CITY_LABEL[p.city],
-    tagline: { fr: p.tagline_fr, en: p.tagline_en },
+    tagline: { fr: p.tagline_fr, en: p.tagline_en, es: p.tagline_es ?? '' },
     requestsEnabled: !!p.requests_enabled && ctx.config.orderingProperties.includes(p.id),
     currency: p.currency,
-    approxLocation: p.approx_lat !== null && p.approx_lng !== null ? { lat: p.approx_lat, lng: p.approx_lng } : null,
     hasDemoContent: !!ctx.db
       .prepare(
         `SELECT EXISTS(SELECT 1 FROM content_items WHERE property_id = @p AND is_demo = 1)
@@ -32,7 +30,11 @@ export function propertySummary(ctx: AppContext, p: PropertyRow): PropertySummar
   };
 }
 
-/** Public, cacheable hotel information. Nothing here is stay-specific. */
+/**
+ * Public surface is deliberately minimal: only hotel guests may see content, so
+ * menus, services and information are served from /api/guest/catalog/* behind a
+ * session. The gate screen may still show which hotel a private link belongs to.
+ */
 export function publicRoutes(ctx: AppContext): Router {
   const r = Router();
   r.use((_req, res, next) => {
@@ -40,42 +42,14 @@ export function publicRoutes(ctx: AppContext): Router {
     next();
   });
 
-  const prop = (id: string) => {
-    const p = getProperty(ctx.db, id);
-    if (!p) throw notFound('property_not_found');
-    return p;
-  };
-
   r.get('/config', (_req, res) => {
     res.json({ pushPublicKey: ctx.push.publicKey });
   });
 
-  r.get('/properties', (_req, res) => {
-    const rows = ctx.db.prepare('SELECT * FROM properties ORDER BY sort, name').all() as PropertyRow[];
-    res.json({ properties: rows.map((p) => propertySummary(ctx, p)) });
-  });
-
   r.get('/properties/:id', (req, res) => {
-    const p = prop(req.params.id);
-    res.json({ property: { ...propertySummary(ctx, p), activationCheck: p.activation_check } });
-  });
-
-  r.get('/properties/:id/content', (req, res) => {
-    res.json({ content: listContent(ctx.db, prop(req.params.id).id, false) });
-  });
-
-  r.get('/properties/:id/menu', (req, res) => {
-    const p = prop(req.params.id);
-    res.json({ currency: p.currency, categories: listMenu(ctx.db, p.id) });
-  });
-
-  r.get('/properties/:id/services', (req, res) => {
-    const p = prop(req.params.id);
-    res.json({ currency: p.currency, services: listServices(ctx.db, p.id) });
-  });
-
-  r.get('/properties/:id/locations', (req, res) => {
-    res.json({ locations: listLocations(ctx.db, prop(req.params.id).id) });
+    const p = getProperty(ctx.db, req.params.id);
+    if (!p) throw notFound('property_not_found');
+    res.json({ property: { id: p.id, name: p.name, city: p.city, activationCheck: p.activation_check } });
   });
 
   return r;

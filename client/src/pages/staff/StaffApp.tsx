@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useI18n } from '../../i18n';
 import { ApiError, get, post } from '../../lib/api';
-import { ErrorNotice, LangSwitch, OfflineBanner, Spinner } from '../../components/ui';
+import { ErrorNotice, LangSwitch, OfflineBanner, Loading } from '../../components/ui';
+import { useBrand, Wordmark } from '../../lib/theme';
 import { StaffCtx } from './staffContext';
 import type { StaffMeDto } from '../../../../shared/src/api';
 
@@ -14,8 +15,8 @@ function Login({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   return (
     <form
-      className="card"
-      style={{ maxWidth: 420, margin: '2rem auto' }}
+      className="panel"
+      style={{ maxWidth: 440, margin: '48px auto' }}
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
@@ -30,7 +31,8 @@ function Login({ onDone }: { onDone: () => void }) {
         }
       }}
     >
-      <h1>{t('staff.login')}</h1>
+      <span className="eyebrow">{t('staff.title')}</span>
+      <h1 style={{ margin: '6px 0 24px' }}>{t('staff.login')}</h1>
       <div className="field">
         <label htmlFor="u">{t('staff.username')}</label>
         <input id="u" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
@@ -54,10 +56,10 @@ function DevicePicker({ onDone }: { onDone: () => void }) {
     get<{ devices: { id: number; name: string }[] }>('/api/staff/devices').then((r) => setDevices(r.devices));
   }, []);
   return (
-    <div className="card" style={{ maxWidth: 480, margin: '2rem auto' }}>
-      <h1>{t('staff.chooseDevice')}</h1>
+    <div className="panel" style={{ maxWidth: 480, margin: '48px auto' }}>
+      <h1 style={{ marginBottom: 12 }}>{t('staff.chooseDevice')}</h1>
       <p className="muted">{t('staff.chooseDeviceHelp')}</p>
-      {!devices && <Spinner />}
+      {!devices && <Loading />}
       <div className="stack">
         {devices?.map((d) => (
           <button key={d.id} className="btn-secondary btn-block" onClick={() => post('/api/staff/device', { deviceId: d.id }).then(onDone)}>
@@ -101,36 +103,38 @@ export default function StaffApp({ children, allowAdmin = false }: { children: R
   const isAdmin = me?.account.role === 'admin';
   const canStays = me?.account.role === 'reception' || isAdmin;
 
+  const theme = useBrand(me?.account.propertyId ?? null);
+
   return (
     <div className="app">
-      <header className="topbar staff-top">
-        <span className="brand">
-          {me ? `${l(me.account.name)}${me.device ? ` · ${me.device.name}` : ''}` : t('staff.title')}
-          <small>{me?.account.propertyName ?? t('staff.title')}</small>
-        </span>
-        <div className="row-start">
-          {me && !needsDevice && (
-            <nav className="row-start" aria-label={t('nav.main')}>
-              {!isAdmin && (
-                <NavLink to="/staff" end className="btn btn-ghost btn-sm">
-                  {t('staff.queue')}
-                </NavLink>
-              )}
-              {canStays && (
-                <NavLink to="/admin/stays" className="btn btn-ghost btn-sm">
-                  {t('staff.stays')}
-                </NavLink>
-              )}
-              {isAdmin && (
-                <NavLink to="/admin/food" className="btn btn-ghost btn-sm">
-                  {t('staff.admin')}
-                </NavLink>
-              )}
-            </nav>
+      <header className="masthead staff-top" style={{ gridTemplateColumns: 'auto 1fr auto', gap: 20 }}>
+        <div>
+          <Wordmark theme={theme} />
+          <div className="eyebrow" style={{ marginTop: 2 }}>
+            {me ? `${l(me.account.name)}${me.device ? ` · ${me.device.name}` : ''}` : t('staff.title')}
+          </div>
+        </div>
+        <nav className="row-start staff-nav" aria-label={t('nav.main')} style={{ justifySelf: 'center' }}>
+          {me && !needsDevice && !isAdmin && (
+            <NavLink to="/staff" end className="btn-text">
+              {t('staff.queue')}
+            </NavLink>
           )}
+          {me && !needsDevice && canStays && (
+            <NavLink to="/admin/stays" className="btn-text">
+              {t('staff.stays')}
+            </NavLink>
+          )}
+          {me && !needsDevice && isAdmin && (
+            <NavLink to="/admin/food" className="btn-text">
+              {t('staff.admin')}
+            </NavLink>
+          )}
+        </nav>
+        <div className="row-start">
           <LangSwitch />
           {me && (
-            <button className="btn-ghost btn-sm" onClick={signOut}>
+            <button className="btn-text" onClick={signOut}>
               {t('staff.signOut')}
             </button>
           )}
@@ -138,7 +142,7 @@ export default function StaffApp({ children, allowAdmin = false }: { children: R
       </header>
       <OfflineBanner />
       <main id="main" className="wide">
-        {state === 'loading' && <Spinner />}
+        {state === 'loading' && <Loading />}
         {state === 'login' && <Login onDone={reload} />}
         {state === 'ready' && needsDevice && <DevicePicker onDone={reload} />}
         {state === 'ready' && me && !needsDevice && (isAdmin && !allowAdmin ? <ErrorNotice code="department_account_required" /> : <StaffCtx.Provider value={{ me, reload, signOut }}>{children}</StaffCtx.Provider>)}

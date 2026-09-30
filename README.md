@@ -1,9 +1,10 @@
 # Le Palace d'Anfa — Guest PWA & Staff Companion
 
-Pilot application for **Le Palace d'Anfa, Casablanca** (156 rooms): a bilingual (FR/EN) guest
-Progressive Web App for the hotel guide, **Food** (Room Service) and **Services** (Reception)
-requests, plus the staff companion used on shared department tablets to receive, claim, confirm
-and complete those requests.
+Pilot application for **Le Palace d'Anfa, Casablanca** (156 rooms): a trilingual (FR/EN/ES) guest
+Progressive Web App — **reserved for validated hotel guests** — for the hotel guide, **Food**
+(Room Service) and **Services** (Reception) requests, plus the staff companion used on shared
+department tablets to receive, claim, confirm and complete those requests. Each hotel is styled
+with its own colours from the Rassuich Hotels & Resorts charter.
 
 One project: **React + Vite** (guest, staff and admin route groups), **Node.js + Express** API,
 **SQLite** (single file, local to the backend), **TypeScript** throughout, shared types/state machine
@@ -32,14 +33,17 @@ npm run dev                # API on :3000, PWA on http://localhost:5173 (proxies
 | Reception (shared, tablets "Reception Tablet 1/2") | `palace.reception` | `demo-reception` |
 | Admin | `palace.admin` | `demo-admin-pass` |
 
-…and one **private activation link** per demo stay, e.g.
-`http://localhost:5173/activate?p=palace-anfa#t=…` (room `DEMO-101`). Links are shown once;
-reception can issue new ones at any time (**Stays & QR → New QR**).
+…and, per demo stay, a **private QR link** (`http://localhost:5173/activate?p=palace-anfa#t=…`)
+and the matching **12-character validation code** (`XXXX-XXXX-XXXX`) for room `DEMO-101` / `DEMO-102`.
+They are shown once; reception can issue new ones at any time (**Stays & QR → New QR**), which
+prints the QR and the code together.
 
 ### Demo script (two staff sessions, several guest devices)
 
-1. **Guest phone** – open the activation link, enter room `DEMO-101`. Browse *Restauration*, add
-   items, choose *Ma chambre* or a pool lounger, send.
+1. **Guest phone** – open `http://localhost:5173`: pick *Français / English / Español*, then either
+   open the private QR link (or scan it with *Open the camera*) or type the validation code, and
+   enter room `DEMO-101`. Nothing is visible before this step. Browse *Restauration*, add items,
+   choose *Ma chambre* or a pool lounger, send.
 2. **Second guest device** – open the *same* link in another browser/profile (another occupant).
    Both devices share *Mes demandes*.
 3. **Room Service Tablet 1 and Tablet 2** – open `http://localhost:5173/staff` in two other
@@ -49,19 +53,22 @@ reception can issue new ones at any time (**Stays & QR → New QR**).
    **Demander un nouvel appel de confirmation**; tapping it reopens the *same* ticket as call attempt 2.
 5. Take it again, **Confirmée par téléphone**, enter it manually in the POS and tick
    **Saisie en caisse** (+ optional reference), **Lancer la préparation**, **Marquer livrée**.
-6. **Reception** (`/staff` as `palace.reception`) receives *Services* (towels…), records
+6. **Services**: the guest ticks several items (towels, toothbrush, pillow…) with quantities and
+   details and sends them as **one** request. **Reception** (`/staff` as `palace.reception`)
+   receives it as a single ticket, records
    **Gouvernante contactée** and **Terminée**. Under **Séjours et QR** it can create stays,
    print/rotate QR codes, move rooms (signs devices out and issues a new QR) and check out.
 7. **Admin** (`/admin` as `palace.admin`) edits menus, services, hotel information, rooms, pool
    tables/loungers, tablets and passwords, and sees integration status.
 
-The public hotel link `/p/palace-anfa` only selects the hotel; it can never activate a stay.
+The public hotel link `/p/palace-anfa` only brands the validation screen with that hotel's
+colours; it can never activate a stay or show any content.
 
 ## Build, run, test
 
 ```bash
 npm run typecheck          # tsc over shared/, server/, client/, tests
-npm test                   # 72 unit + API integration tests (vitest, in-memory SQLite)
+npm test                   # unit + API integration tests (vitest, in-memory SQLite)
 npm run test:e2e           # 7 Playwright end-to-end scenarios on the built app (fresh demo DB)
 npm run build              # client → dist/client, server → dist/server
 npm start                  # serves API + built PWA on $PORT (default 3000)
@@ -80,21 +87,26 @@ Production notes (HTTPS, reverse proxy, environment, backup/restore, staff termi
 
 ## What is implemented
 
-**Guest PWA** (`/`, `/p/:property`, `/activate`, `/h/*`)
-- Welcome: FR/EN choice, hotel list, optional **Find my hotel** (geolocation stays on the device;
-  Casablanca → Palace / Hôtel Suisse, Marrakech → Palm Plaza / Palm Appart Club). Inactive
-  properties show information only and cannot receive requests.
-- Hotel guide: information, opening hours, events, contacts; public without login.
-- Private QR activation (token in URL fragment, removed from the address bar at startup, exchanged
-  for an httpOnly session; room-number check).
-- Food: categories, options (required/optional groups), quantities, availability, cart kept on the
-  device, room or labelled pool destination, notes, total, "confirmation required" notice.
-- Services: complimentary vs visible-fee items, quantity limits, optional details; no call needed.
-- My requests: shared across the stay's devices, live progress, ticket reference, destination,
-  call attempts, agreed amendments; failed-confirmation screen with same-ticket callback.
-- My stay: room, notifications opt-in (only if push is configured), bill area (honest
-  "contact reception" fallback), sign out of this device. Post-stay: ordering disabled.
-- Installable (manifest + icons), service worker caches the shell and **public** info only.
+**Guest PWA** (`/`, `/activate`, `/p/:property`, `/h/*`)
+- **Language first**: Français, English or Español on first use (changeable later from the masthead).
+- **Guests only**: nothing — hotel guide, menus, services — is shown or served before validation.
+  Validate with the private QR (opened from the phone camera, or scanned in the app) or the typed
+  12-character validation code; the room number is always checked with a code. All failures look
+  identical and are rate-limited.
+- Hotel guide: information, opening hours, events, contacts (FR/EN/ES content, falling back to
+  English then French when a Spanish text has not been entered yet).
+- Food: categories, options, quantities, availability, cart kept on the device, room or labelled
+  pool destination, notes, total, "confirmation required" notice.
+- **Services as a checklist**: tick every item needed, set quantities/details, review once, and
+  send **one** request to Reception. Complimentary vs visible fees; no confirmation call.
+- My requests (shared across the stay's devices, live progress, call attempts, amendments,
+  failed-confirmation screen with same-ticket callback) and My stay (room, notifications opt-in,
+  honest bill area, sign out). Post-stay: ordering and the guide are closed; only the bill area remains.
+- **Brand themes** per hotel from the charter (see `shared/src/brands.ts`): Palace gold, Hôtel
+  Suisse navy, Palm Plaza terracotta, Palm Appart Club red; group navy before a hotel is known and
+  for staff fallback. Square geometry, hairline rules, no rounded corners, pills, shadows or gradients.
+  Contrast is checked by tests (button labels, text, muted text ≥ 4.5:1).
+- Installable PWA; the service worker caches only the app shell (never guest data or the guide).
   Requests need connectivity; the cart is kept but **never auto-submitted**.
 
 **Staff companion** (`/staff`) – shared department login + named tablet; live queue sections
@@ -108,6 +120,14 @@ alerts while open.
 reprint or occupant change, overdue departures, PMS source/freshness), food menu and options,
 services, hotel content, rooms and pool locations, accounts/tablets/passwords, integration status.
 
+## Brand assets (logos)
+
+Colours come from the charter at rassuich.com/chartes-graphiques. The **logo SVGs** could not be
+downloaded from this build environment, so each hotel's name is set as a typographic wordmark.
+To use the real logos: put the files at `client/public/brands/<property-id>/logo.svg` (Palm
+Appart Club only has a PNG in the charter) and set `logo: '/brands/<property-id>/logo.svg'` for that
+hotel in `shared/src/brands.ts`. Respect the charter's clear space (¼ of the logo height).
+
 ## External dependencies still needed
 
 These are genuine inputs from outside this codebase — not open design questions:
@@ -115,7 +135,8 @@ These are genuine inputs from outside this codebase — not open design question
 1. **Pluriel Cloud API documentation and credentials** – to implement `server/src/pms/pluriel.ts`
    behind the existing adapter boundary. Until then, reception keeps stays current by hand.
 2. **Real hotel content** – the actual room list/labels (156 rooms), pool table/lounger numbering,
-   menus, prices, hours, contacts and events, to replace the demo fixtures.
+   menus, prices, hours, contacts and events (FR/EN/ES), to replace the demo fixtures; plus the
+   charter logo files (see "Brand assets").
 3. **Web push credentials (optional)** – VAPID keys and a contact address, if outside-app
    notifications are wanted. In-app notices work without them.
 4. **Provider-approved deployment on the staff terminals** – confirmation from the POS provider that

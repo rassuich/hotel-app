@@ -8,6 +8,7 @@ export interface PropertyRow {
   city: 'casablanca' | 'marrakech';
   tagline_fr: string;
   tagline_en: string;
+  tagline_es: string;
   approx_lat: number | null;
   approx_lng: number | null;
   room_count: number | null;

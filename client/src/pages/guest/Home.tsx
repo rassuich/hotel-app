@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useI18n } from '../../i18n';
 import { useQuery } from '../../lib/hooks';
 import { useGuest } from '../../lib/guest';
-import { Icons, Notice } from '../../components/ui';
+import { Notice } from '../../components/ui';
 import { useProperty } from './GuestShell';
 import type { ContentItem } from '../../../../shared/src/api';
 
@@ -10,62 +10,69 @@ export default function Home() {
   const { t, l, dateTime } = useI18n();
   const property = useProperty();
   const { me } = useGuest();
-  const q = useQuery<{ content: ContentItem[] }>(`/api/public/properties/${property.id}/content`);
+  const q = useQuery<{ content: ContentItem[] }>('/api/guest/catalog/content');
   const content = q.data?.content ?? [];
+
   const section = (kind: ContentItem['kind'], title: string) => {
     const items = content.filter((c) => c.kind === kind);
     if (items.length === 0) return null;
     return (
-      <section className="card" aria-labelledby={`sec-${kind}`}>
-        <h2 id={`sec-${kind}`} style={{ marginTop: 0 }}>
+      <section className="section" aria-labelledby={`sec-${kind}`}>
+        <h2 id={`sec-${kind}`} className="eyebrow">
           {title}
         </h2>
-        {items.map((c) => (
-          <div className="info-item" key={c.id}>
-            <h3>{l(c.title)}</h3>
-            {c.startsAt && <div className="muted">{dateTime(c.startsAt)}</div>}
-            {l(c.body) && <p>{l(c.body)}</p>}
-          </div>
-        ))}
+        <dl style={{ margin: 0 }}>
+          {items.map((c) => (
+            <div key={c.id} style={{ padding: '10px 0' }}>
+              <dt>
+                <h3>{l(c.title)}</h3>
+              </dt>
+              <dd style={{ margin: '4px 0 0', color: 'var(--muted)', whiteSpace: 'pre-line' }}>
+                {c.startsAt && <span className="num">{dateTime(c.startsAt)} — </span>}
+                {l(c.body)}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </section>
     );
   };
 
   return (
     <>
-      <div className="hero">
+      <div className="page-head">
+        <span className="eyebrow">
+          {l(property.cityLabel)}
+          {me?.roomLabel ? ` · ${t('cart.roomLabel', { room: me.roomLabel })}` : ''}
+        </span>
         <h1>{t('home.greeting', { hotel: property.name })}</h1>
-        <p>{l(property.cityLabel)}</p>
       </div>
-      {!property.requestsEnabled && <Notice kind="info">{t('home.notAccepting')}</Notice>}
-      <div className="cta-grid">
-        <Link to="/h/food" className="cta">
-          {Icons.food}
-          <strong>{t('home.foodCta')}</strong>
-          <span>{t('home.foodCtaSub')}</span>
-        </Link>
-        <Link to="/h/services" className="cta">
-          {Icons.services}
-          <strong>{t('home.servicesCta')}</strong>
-          <span>{t('home.servicesCtaSub')}</span>
-        </Link>
-      </div>
-      {property.requestsEnabled && !me && (
-        <Notice kind="info">
-          <p>{t('home.activatePrompt')}</p>
-          <Link to="/activate" className="btn btn-secondary btn-sm">
-            {t('home.activateCta')}
-          </Link>
-        </Notice>
+      {!property.requestsEnabled && (
+        <div className="pad">
+          <Notice>{t('home.notAccepting')}</Notice>
+        </div>
       )}
+      <ul className="list" style={{ borderTop: 0 }}>
+        <li>
+          <Link to="/h/food" className="row-link">
+            <span className="title">{t('home.foodCta')}</span>
+            <span className="aside arrow" aria-hidden="true" />
+            <span className="sub">{t('home.foodCtaSub')}</span>
+          </Link>
+        </li>
+        <li>
+          <Link to="/h/services" className="row-link">
+            <span className="title">{t('home.servicesCta')}</span>
+            <span className="aside arrow" aria-hidden="true" />
+            <span className="sub">{t('home.servicesCtaSub')}</span>
+          </Link>
+        </li>
+      </ul>
       {section('info', t('home.information'))}
       {section('hours', t('home.hours'))}
       {section('event', t('home.events'))}
       {section('contact', t('home.contacts'))}
-      {q.data && content.length === 0 && <p className="muted">{t('home.noContent')}</p>}
-      <p className="center">
-        <Link to="/">{t('home.changeHotel')}</Link>
-      </p>
+      {q.data && content.length === 0 && <p className="section muted">{t('home.noContent')}</p>}
     </>
   );
 }

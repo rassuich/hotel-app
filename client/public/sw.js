@@ -1,13 +1,14 @@
 /*
  * Service worker for the guest PWA.
  *
- * Policy (see cachePolicy): the app shell, hashed assets and PUBLIC hotel
- * information (/api/public/*) may be cached for offline reading. Private data —
- * guest/staff/admin APIs, bills, stay data, activation — is NEVER cached. The
+ * Policy (see cachePolicy): only the app shell, hashed assets and the minimal
+ * public hotel name (/api/public/*) may be cached. Everything behind a guest
+ * session — hotel guide, menus, services, requests, bills, stay data,
+ * activation — and every staff/admin API is NEVER cached. The
  * worker never queues or replays requests: an order is only sent by an
  * explicit tap while online.
  */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL_CACHE = `pa-shell-${VERSION}`;
 const PUBLIC_CACHE = `pa-public-${VERSION}`;
 const SHELL = ['/', '/manifest.webmanifest', '/icons/icon.svg', '/icons/icon-192.png'];

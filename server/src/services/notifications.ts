@@ -6,6 +6,7 @@ const MAX_ATTEMPTS = 5;
 const PUSH_TEXT = {
   fr: { title: "Le Palace d'Anfa", body: (ref: string) => `Nous avons essayé de vous joindre pour confirmer la demande ${ref}, sans réponse.` },
   en: { title: "Le Palace d'Anfa", body: (ref: string) => `We tried to reach you to confirm request ${ref} but got no answer.` },
+  es: { title: "Le Palace d'Anfa", body: (ref: string) => `Intentamos contactarle para confirmar la solicitud ${ref}, sin respuesta.` },
 };
 
 /**
@@ -69,7 +70,7 @@ export class NotificationWorker {
           let delivered = 0;
           let lastError: string | null = null;
           for (const sub of subs) {
-            const lang = sub.language === 'en' ? 'en' : 'fr';
+            const lang: keyof typeof PUSH_TEXT = sub.language === 'en' || sub.language === 'es' ? sub.language : 'fr';
             const payload = JSON.stringify({
               title: PUSH_TEXT[lang].title,
               body: PUSH_TEXT[lang].body(notice.ref ?? ''),
