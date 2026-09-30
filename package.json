@@ -1,0 +1,59 @@
+{
+  "name": "palace-anfa-guest",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Guest PWA and staff companion for Le Palace d'Anfa (pilot)",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,magenta \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "tsx watch server/src/index.ts",
+    "dev:client": "vite --config client/vite.config.ts",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build --config client/vite.config.ts",
+    "build:server": "esbuild server/src/index.ts server/src/cli.ts --bundle --platform=node --format=esm --packages=external --outdir=dist/server --out-extension:.js=.mjs && node scripts/copy-migrations.mjs",
+    "start": "node dist/server/index.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "db:migrate": "tsx server/src/cli.ts migrate",
+    "db:seed-demo": "tsx server/src/cli.ts seed-demo",
+    "db:reset-demo": "tsx server/src/cli.ts reset-demo",
+    "db:backup": "tsx server/src/cli.ts backup",
+    "push:generate-keys": "tsx server/src/cli.ts generate-vapid"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.1.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.0",
+    "web-push": "^3.6.7",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cookie-parser": "^1.4.9",
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.18.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/supertest": "^6.0.3",
+    "@types/web-push": "^3.6.4",
+    "@vitejs/plugin-react": "^5.0.4",
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.25.10",
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.6",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.9",
+    "vitest": "^5.0.2"
+  }
+}
