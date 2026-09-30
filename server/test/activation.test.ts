@@ -64,19 +64,34 @@ describe('typed validation code', () => {
   it('always requires the room number with a code, and fails identically', async () => {
     const s = env.stays[0];
     const c = await new Client(env.app).init();
-    const bodies = [
-      { code: s.code },
-      { code: s.code, room: 'DEMO-102' },
-      { code: 'ZZZZ-ZZZZ-ZZZZ', room: 'DEMO-101' },
-      { code: 'AB', room: 'DEMO-101' },
-    ];
-    for (const b of bodies) {
+    for (const b of [{ code: s.code }, { code: s.code, room: 'DEMO-102' }, { code: 'ZZZZ-ZZZZ-ZZZZ', room: 'DEMO-101' }, { code: 'ZZZZ-ZZ', room: 'DEMO-101' }]) {
       const r = await c.post('/api/guest/activate', b);
-      expect([400, 401]).toContain(r.status);
-      if (r.status === 401) expect(r.body).toEqual({ error: { code: 'activation_failed' } });
+      expect(r.status, JSON.stringify(b)).toBe(401);
+      expect(r.body).toEqual({ error: { code: 'activation_failed' } });
     }
-    // Sending both a token and a code is refused.
+    // Malformed input (too short to be a code, or both token and code) is a plain validation error.
+    expect((await c.post('/api/guest/activate', { code: 'AB', room: 'DEMO-101' })).status).toBe(400);
     expect((await c.post('/api/guest/activate', { code: s.code, token: s.token, room: 'DEMO-101' })).status).toBe(400);
+  });
+
+  it('locks a valid code after 10 wrong room answers; reception must reissue', async () => {
+    const s = env.stays[0];
+    const c = await new Client(env.app).init();
+    for (let i = 0; i < 10; i++) expect((await c.post('/api/guest/activate', { code: s.code, room: `X${i}` })).status).toBe(401);
+    // Even the right room no longer works: the credential (QR and code) is revoked.
+    expect((await c.post('/api/guest/activate', { code: s.code, room: 'DEMO-101' })).status).toBe(401);
+    expect((await c.post('/api/guest/activate', { token: s.token, room: 'DEMO-101' })).status).toBe(401);
+    const row = env.ctx.db.prepare('SELECT revoke_reason FROM activation_credentials WHERE stay_id = ?').get(s.stayId);
+    expect(row).toEqual({ revoke_reason: 'too_many_attempts' });
+    const stays = (await (await reception(env)).get('/api/admin/stays')).body.stays;
+    expect(stays.find((x: { id: string }) => x.id === s.stayId).activeQr).toBe(false);
+  });
+
+  it('hashes codes with a keyed HMAC, not a bare SHA-256', async () => {
+    const { createHash } = await import('node:crypto');
+    const s = env.stays[0];
+    const bare = createHash('sha256').update(s.code.replace(/-/g, '')).digest('hex');
+    expect(env.ctx.db.prepare('SELECT COUNT(*) FROM activation_credentials WHERE code_hash = ?').pluck().get(bare)).toBe(0);
   });
 
   it('is revoked together with the QR on rotation and room move, and stored only as a hash', async () => {
@@ -140,13 +155,24 @@ describe('private QR activation', () => {
     for (const s of env.stays) expect(dump).not.toContain(s.token);
   });
 
-  it('rate-limits activation attempts', async () => {
+  it('rate-limits failed activation attempts per IP (successes do not count)', async () => {
     env.close();
     env = await setup({ rateLimit: { windowMs: 60_000, activationMax: 3, loginMax: 3 } });
+    for (let i = 0; i < 5; i++) await guest(env); // five successful activations cost nothing
     const c = await new Client(env.app).init();
     const codes: number[] = [];
     for (let i = 0; i < 5; i++) codes.push((await c.post('/api/guest/activate', { token: 'B'.repeat(43), room: '1' })).status);
     expect(codes).toEqual([401, 401, 401, 429, 429]);
+  });
+
+  it('validating a new stay on a signed-in device replaces the old session', async () => {
+    const c = await guest(env, 0);
+    const r = await c.post('/api/guest/activate', { token: env.stays[1].token, room: env.stays[1].room, language: 'es' });
+    expect(r.status).toBe(201);
+    const me = (await c.get('/api/guest/me')).body.me;
+    expect(me).toMatchObject({ roomLabel: 'DEMO-102', language: 'es', property: { timezone: 'Africa/Casablanca' } });
+    const reasons = env.ctx.db.prepare('SELECT revoke_reason FROM guest_sessions ORDER BY created_at').pluck().all();
+    expect(reasons).toEqual(['replaced', null]);
   });
 
   it('sets an httpOnly session cookie scoped to the API', async () => {

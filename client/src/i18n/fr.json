@@ -9,7 +9,11 @@
     "confirm": "Confirmer",
     "offline": "Vous êtes hors ligne. Les informations peuvent ne pas être à jour et aucune demande ne peut être envoyée.",
     "demoBanner": "Contenu de démonstration : les menus, prix, horaires et chambres affichés sont des exemples, pas les informations réelles de l'hôtel.",
-    "skipToContent": "Aller au contenu"
+    "skipToContent": "Aller au contenu",
+    "demo": "Démo",
+    "unreachableEyebrow": "Connexion",
+    "unreachableTitle": "Impossible de joindre l'hôtel pour le moment",
+    "unreachableBody": "Vérifiez votre connexion. Votre séjour reste actif sur cet appareil et votre commande en cours est conservée ; rien ne sera envoyé avant votre retour en ligne."
   },
   "nav": {
     "home": "Hôtel",
@@ -44,9 +48,11 @@
     "upTo": "Jusqu'à {count}",
     "optional": "Facultatif",
     "viewOrder": "Voir la commande",
-    "itemsCount": "{count} article(s)",
     "emptyMenu": "Le menu n'est pas encore disponible.",
-    "optionUnavailable": "indisponible"
+    "optionUnavailable": "indisponible",
+    "itemsCount_one": "{count} article",
+    "itemsCount_other": "{count} articles",
+    "eyebrow": "Room Service"
   },
   "cart": {
     "title": "Votre commande",
@@ -90,9 +96,13 @@
     "eyebrow": "Réception",
     "selectHelp": "Cochez tout ce dont vous avez besoin, puis envoyez le tout en une seule demande.",
     "review": "Vérifier la demande",
-    "selectedCount": "{count} article(s)",
     "summaryTitle": "Votre demande",
-    "notes": "Remarque pour la réception (facultatif)"
+    "notes": "Remarque pour la réception (facultatif)",
+    "selectedCount_one": "{count} article",
+    "selectedCount_other": "{count} articles",
+    "removed": "Plus disponible(s) et retiré(s) de votre demande : {items}.",
+    "acceptChanges": "Accepter la demande mise à jour",
+    "maxLines": "Vous pouvez demander jusqu'à {count} articles différents à la fois."
   },
   "requests": {
     "title": "Mes demandes",
@@ -275,7 +285,6 @@
     "integrations": "Intégrations",
     "pmsManual": "Source : saisie manuelle par la réception (aucune vérification en direct avec le PMS). Mettez à jour cet écran lors des changements de chambre et des départs.",
     "pmsLastChange": "Dernière modification enregistrée : {time}",
-    "overdue": "{count} départ(s) dépassé(s)",
     "overdueBadge": "Départ dépassé",
     "checkIn": "Nouveau séjour",
     "guestName": "Nom du client / de la réservation",
@@ -286,10 +295,8 @@
     "filter_active": "En séjour",
     "filter_overdue": "Départ dépassé",
     "filter_checked_out": "Partis",
-    "devicesSignedIn": "{count} appareil(s)",
     "qrActive": "QR actif",
     "qrNone": "Aucun QR actif",
-    "openRequests": "{count} ouverte(s)",
     "attention": "{count} à vérifier",
     "showQr": "Nouveau QR (réimpression)",
     "occupantChange": "Changement d'occupants",
@@ -367,7 +374,13 @@
     "bodyEs": "Texte (ES)",
     "labelEs": "Libellé (ES)",
     "validationCode": "Code de validation",
-    "codeHelp": "Pour les clients qui ne peuvent pas scanner : ils saisissent ce code avec la chambre {room}."
+    "codeHelp": "Pour les clients qui ne peuvent pas scanner : ils saisissent ce code avec la chambre {room}.",
+    "overdue_one": "{count} départ dépassé",
+    "overdue_other": "{count} départs dépassés",
+    "devicesSignedIn_one": "{count} appareil",
+    "devicesSignedIn_other": "{count} appareils",
+    "openRequests_one": "{count} ouverte",
+    "openRequests_other": "{count} ouvertes"
   },
   "errors": {
     "generic": "Un problème est survenu. Veuillez réessayer.",
@@ -452,6 +465,12 @@
     "confirmTitle": "Confirmez votre chambre",
     "confirmHelp": "Saisissez votre numéro de chambre pour terminer. Rien n'est affiché avant la validation de votre séjour.",
     "useCodeInstead": "Utiliser plutôt un code de validation",
-    "footer": "Rassuich Hotels & Resorts — réservé aux clients enregistrés."
+    "footer": "Rassuich Hotels & Resorts — réservé aux clients enregistrés.",
+    "switchStay": "Cet appareil est actuellement associé à la chambre {room}. Valider ce code le rattachera au nouveau séjour."
+  },
+  "print": {
+    "title": "Votre application client",
+    "scan": "Scannez le QR code avec l'appareil photo de votre téléphone.",
+    "code": "Ou ouvrez {origin} et saisissez ce code avec votre numéro de chambre."
   }
 }

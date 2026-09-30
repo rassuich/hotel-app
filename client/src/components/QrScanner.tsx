@@ -68,8 +68,12 @@ export default function QrScanner({ onResult }: { onResult: (text: string) => vo
       }
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-        if (stopped) return;
-        const v = video.current!;
+        const v = video.current;
+        if (stopped || !v) {
+          // Closed before permission resolved: release the camera immediately.
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
         v.srcObject = stream;
         v.setAttribute('playsinline', 'true');
         await v.play();

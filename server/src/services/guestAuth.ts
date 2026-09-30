@@ -2,10 +2,12 @@ import type { Request, Response } from 'express';
 import type { AppContext } from '../context';
 import { ApiError, unauthorized } from '../lib/errors';
 import { addHours, nowIso } from '../lib/clock';
-import { newId, normalizeCode, randomToken, sha256, CODE_LENGTH } from '../lib/crypto';
+import { codeHash, newId, normalizeCode, randomToken, sha256, CODE_LENGTH } from '../lib/crypto';
 import { currentAssignment, getProperty, getStay, type GuestSessionRow, type PropertyRow, type StayRow } from './rows';
 
 export const GUEST_COOKIE = 'pa_guest';
+/** Wrong room/name answers tolerated on one valid credential before it is revoked. */
+export const MAX_CREDENTIAL_FAILURES = 10;
 
 export interface GuestContext {
   session: GuestSessionRow;
@@ -33,29 +35,42 @@ export function activate(
 ): { cookieToken: string; session: GuestSessionRow } {
   const { db } = ctx;
   const fail = () => new ApiError(401, 'activation_failed');
+  let cred: { id: number; stay_id: string; assignment_revision: number; failed_attempts: number } | undefined;
+  const viaCode = !input.token && !!input.code;
+  if (input.token) {
+    cred = db.prepare('SELECT * FROM activation_credentials WHERE token_hash = ? AND revoked_at IS NULL').get(sha256(input.token)) as typeof cred;
+  } else if (input.code) {
+    const normalized = normalizeCode(input.code);
+    if (normalized.length !== CODE_LENGTH) throw fail();
+    cred = db
+      .prepare('SELECT * FROM activation_credentials WHERE code_hash = ? AND revoked_at IS NULL')
+      .get(codeHash(ctx.config.codeSecret!, normalized)) as typeof cred;
+  }
+  if (!cred) throw fail();
+  const stay = getStay(db, cred.stay_id);
+  if (!stay || stay.status !== 'active') throw fail();
+  const assignment = currentAssignment(db, stay.id);
+  if (!assignment || assignment.revision !== cred.assignment_revision) throw fail();
+  const property = getProperty(db, stay.property_id)!;
+  const check = viaCode ? 'room' : property.activation_check;
+  const answered =
+    check === 'room'
+      ? !!input.room && normalize(input.room) === normalize(assignment.room_label)
+      : check === 'name'
+        ? normalize(input.name ?? '').length >= 2 && normalize(stay.guest_name).includes(normalize(input.name ?? ''))
+        : true;
+  if (!answered) {
+    // A valid credential with wrong answers: count it, and lock the credential after too many.
+    const attempts = cred.failed_attempts + 1;
+    db.prepare(
+      `UPDATE activation_credentials SET failed_attempts = ?,
+         revoked_at = CASE WHEN ? >= ? THEN ? ELSE revoked_at END,
+         revoke_reason = CASE WHEN ? >= ? THEN 'too_many_attempts' ELSE revoke_reason END
+       WHERE id = ?`,
+    ).run(attempts, attempts, MAX_CREDENTIAL_FAILURES, nowIso(), attempts, MAX_CREDENTIAL_FAILURES, cred.id);
+    throw fail();
+  }
   return db.transaction(() => {
-    let cred: { stay_id: string; assignment_revision: number } | undefined;
-    const viaCode = !input.token && !!input.code;
-    if (input.token) {
-      cred = db.prepare('SELECT * FROM activation_credentials WHERE token_hash = ? AND revoked_at IS NULL').get(sha256(input.token)) as typeof cred;
-    } else if (input.code) {
-      const normalized = normalizeCode(input.code);
-      if (normalized.length !== CODE_LENGTH) throw fail();
-      cred = db.prepare('SELECT * FROM activation_credentials WHERE code_hash = ? AND revoked_at IS NULL').get(sha256(normalized)) as typeof cred;
-    }
-    if (!cred) throw fail();
-    const stay = getStay(db, cred.stay_id);
-    if (!stay || stay.status !== 'active') throw fail();
-    const assignment = currentAssignment(db, stay.id);
-    if (!assignment || assignment.revision !== cred.assignment_revision) throw fail();
-    const property = getProperty(db, stay.property_id)!;
-    const check = viaCode ? 'room' : property.activation_check;
-    if (check === 'room') {
-      if (!input.room || normalize(input.room) !== normalize(assignment.room_label)) throw fail();
-    } else if (check === 'name') {
-      const n = normalize(input.name ?? '');
-      if (n.length < 2 || !normalize(stay.guest_name).includes(n)) throw fail();
-    }
     const cookieToken = randomToken(32);
     const now = nowIso();
     const session: GuestSessionRow = {

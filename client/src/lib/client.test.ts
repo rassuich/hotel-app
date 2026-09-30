@@ -6,7 +6,7 @@ import { addLine, cartCount, cartTotal, emptyCart, repriceFromMenu, setQuantity,
 import { parseScanned } from './scan';
 import { pick } from '../i18n';
 import type { FoodItem } from '../../../shared/src/api';
-import { BRAND_THEMES, GROUP_THEME, contrast } from '../../../shared/src/brands';
+import { BRAND_THEMES, GROUP_THEME, contrast, themeFor } from '../../../shared/src/brands';
 
 function loadSwPolicy(): (pathname: string, mode: string) => string {
   const code = readFileSync(path.resolve(__dirname, '../../public/sw.js'), 'utf8');
@@ -81,18 +81,28 @@ describe('content language fallback', () => {
 
 describe('brand themes (Rassuich charter)', () => {
   const all = [GROUP_THEME, ...Object.values(BRAND_THEMES)];
+  it('falls back to the group identity for unknown or prototype ids', () => {
+    expect(themeFor('constructor')).toBe(GROUP_THEME);
+    expect(themeFor('__proto__')).toBe(GROUP_THEME);
+    expect(themeFor(null)).toBe(GROUP_THEME);
+  });
   it('keeps the charter accents verbatim', () => {
     expect(BRAND_THEMES['palace-anfa'].accent).toBe('#b08d57');
     expect(BRAND_THEMES['hotel-suisse'].accent).toBe('#1f3a52');
     expect(BRAND_THEMES['palm-plaza'].accent).toBe('#995151');
     expect(BRAND_THEMES['palm-appart-club'].accent).toBe('#ce2b31');
     expect(GROUP_THEME.accent).toBe('#0f2a4a');
+    // Pressed shades are the charter's own wherever cream text already passes.
+    for (const id of ['hotel-suisse', 'palm-plaza', 'palm-appart-club']) expect(BRAND_THEMES[id].accentPressed).toBe(BRAND_THEMES[id].accentDeep);
   });
   it('meets WCAG AA for button labels, body text, muted text and accent text', () => {
     for (const th of all) {
       expect(contrast(th.onAccent, th.accent), `${th.id} button`).toBeGreaterThanOrEqual(4.5);
       expect(contrast(th.ink, th.paper), `${th.id} ink`).toBeGreaterThanOrEqual(7);
       expect(contrast(th.muted, th.paper), `${th.id} muted`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(th.muted, th.paperDeep), `${th.id} muted on paperDeep`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(th.onAccentDeep, th.accentPressed), `${th.id} pressed button`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(th.ink, th.paperDeep), `${th.id} focus ring`).toBeGreaterThanOrEqual(3);
       expect(contrast(th.accentText, th.paper), `${th.id} accent text`).toBeGreaterThanOrEqual(4.5);
     }
   });

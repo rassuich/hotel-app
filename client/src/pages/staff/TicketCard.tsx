@@ -77,7 +77,7 @@ export default function TicketCard({
       </div>
 
       {r.attention.flag && (
-        <div className="notice notice-bad mt" role="alert">
+        <div className="note bad" role="alert">
           {t(`staff.attention_${r.attention.flag}`, { detail: r.attention.detail ?? '' })}
           <div className="btn-row mt">
             <button className="btn-secondary btn-sm" disabled={busy || (!!r.owner && !mine)} onClick={() => setPrompt({ kind: 'resolve' })}>
@@ -99,7 +99,7 @@ export default function TicketCard({
           </li>
         ))}
       </ul>
-      {r.type === 'food' && (
+      {(r.type === 'food' || r.totalMinor > 0) && (
         <div className="total-row">
           <span>{t('staff.total')}</span>
           <span>{money(r.totalMinor, r.currency)}</span>

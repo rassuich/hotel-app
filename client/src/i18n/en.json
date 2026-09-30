@@ -9,7 +9,11 @@
     "confirm": "Confirm",
     "offline": "You are offline. Information shown may be out of date and requests cannot be sent.",
     "demoBanner": "Demo content: menus, prices, hours and rooms shown here are samples, not the hotel's real information.",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "demo": "Demo",
+    "unreachableEyebrow": "Connection",
+    "unreachableTitle": "We can't reach the hotel right now",
+    "unreachableBody": "Check your connection. Your stay is still active on this device and anything in your order is kept; nothing will be sent until you are back online."
   },
   "nav": {
     "home": "Hotel",
@@ -44,9 +48,11 @@
     "upTo": "Up to {count}",
     "optional": "Optional",
     "viewOrder": "View order",
-    "itemsCount": "{count} item(s)",
     "emptyMenu": "The menu is not available yet.",
-    "optionUnavailable": "unavailable"
+    "optionUnavailable": "unavailable",
+    "itemsCount_one": "{count} item",
+    "itemsCount_other": "{count} items",
+    "eyebrow": "Room Service"
   },
   "cart": {
     "title": "Your order",
@@ -90,9 +96,13 @@
     "eyebrow": "Reception",
     "selectHelp": "Tick everything you need, then send it all as one request.",
     "review": "Review request",
-    "selectedCount": "{count} item(s)",
     "summaryTitle": "Your request",
-    "notes": "Note for reception (optional)"
+    "notes": "Note for reception (optional)",
+    "selectedCount_one": "{count} item",
+    "selectedCount_other": "{count} items",
+    "removed": "No longer available and removed from your request: {items}.",
+    "acceptChanges": "Accept updated request",
+    "maxLines": "You can request up to {count} different items at once."
   },
   "requests": {
     "title": "My requests",
@@ -275,7 +285,6 @@
     "integrations": "Integrations",
     "pmsManual": "Source: manual entry by reception (no live PMS check). Update this screen when guests move rooms or check out.",
     "pmsLastChange": "Last change recorded: {time}",
-    "overdue": "{count} overdue departure(s)",
     "overdueBadge": "Overdue",
     "checkIn": "New stay",
     "guestName": "Guest / reservation name",
@@ -286,10 +295,8 @@
     "filter_active": "In house",
     "filter_overdue": "Overdue",
     "filter_checked_out": "Checked out",
-    "devicesSignedIn": "{count} device(s)",
     "qrActive": "QR active",
     "qrNone": "No active QR",
-    "openRequests": "{count} open",
     "attention": "{count} to review",
     "showQr": "New QR (reprint)",
     "occupantChange": "Occupant change",
@@ -367,7 +374,13 @@
     "bodyEs": "Text (ES)",
     "labelEs": "Label (ES)",
     "validationCode": "Validation code",
-    "codeHelp": "For guests who cannot scan: they type this code with room {room}."
+    "codeHelp": "For guests who cannot scan: they type this code with room {room}.",
+    "overdue_one": "{count} overdue departure",
+    "overdue_other": "{count} overdue departures",
+    "devicesSignedIn_one": "{count} device",
+    "devicesSignedIn_other": "{count} devices",
+    "openRequests_one": "{count} open",
+    "openRequests_other": "{count} open"
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -452,6 +465,12 @@
     "confirmTitle": "Confirm your room",
     "confirmHelp": "Enter your room number to finish. Nothing is shown until your stay is validated.",
     "useCodeInstead": "Use a validation code instead",
-    "footer": "Rassuich Hotels & Resorts — reserved for registered guests."
+    "footer": "Rassuich Hotels & Resorts — reserved for registered guests.",
+    "switchStay": "This device is currently linked to room {room}. Validating this code will switch it to the new stay."
+  },
+  "print": {
+    "title": "Your guest app",
+    "scan": "Scan the QR code with your phone's camera.",
+    "code": "Or open {origin} and enter this code with your room number."
   }
 }

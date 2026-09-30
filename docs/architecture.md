@@ -97,9 +97,14 @@ POS-entered, completed or cancelled work.
   exposes the push key and a hotel's name/city (to brand the gate of a hotel-specific link).
 - **Validation code**: every credential has a QR token (43 chars, 256 bits) *and* a typed code —
   12 Crockford base32 characters (60 bits) shown as `XXXX-XXXX-XXXX`, normalised for case,
-  spaces/dashes and look-alikes (O→0, I/L→1). Both are stored only as SHA-256 hashes on the same
+  spaces/dashes and look-alikes (O→0, I/L→1). The token is stored as SHA-256 and the code as an
+  HMAC-SHA-256 keyed by a secret kept outside the database, both on the same
   `activation_credentials` row, so rotation, room moves and checkout revoke both. A typed code
-  always requires the room number; the QR follows the hotel's `activation_check` setting.
+  always requires the room number; the QR follows the hotel's `activation_check` setting. Ten wrong
+  answers on a valid credential revoke it (`too_many_attempts`); failures (not successes) are also
+  limited per IP. Validating on a device that already has a session replaces that session.
+- The server's `Permissions-Policy` allows the camera for its own origin only (`camera=(self)`),
+  which the in-app scanner needs; microphone and geolocation are disabled.
 - **Spanish**: migration `002` adds `*_es` columns to all bilingual content (and request-line
   snapshots). An empty Spanish field falls back to English, then French, in the apps.
 - **Brand themes** are data in `shared/src/brands.ts`: charter values verbatim, plus derived tokens

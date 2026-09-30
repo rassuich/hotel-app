@@ -16,7 +16,8 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     locale: 'fr-FR',
-    launchOptions: { executablePath },
+    // A fake camera lets the in-app QR scanner be exercised headlessly.
+    launchOptions: { executablePath, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
     trace: 'retain-on-failure',
   },
   webServer: {

@@ -35,7 +35,8 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
+  // Camera is allowed for our own pages only: the guest gate scans the private QR in-app.
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
   if (!req.path.startsWith('/api')) {
     res.setHeader(
       'Content-Security-Policy',

@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
-import { useI18n } from '../../i18n';
+import { translate, useI18n } from '../../i18n';
+import { useStaff } from '../staff/staffContext';
+import { themeFor } from '../../../../shared/src/brands';
+import { LANGS } from '../../../../shared/src/api';
 import { ApiError, patch, post } from '../../lib/api';
 import { useQuery } from '../../lib/hooks';
 import { ErrorNotice, Notice, Sheet, Loading } from '../../components/ui';
@@ -33,8 +37,37 @@ interface PmsStatus {
   lastChangeAt: string | null;
 }
 
+/**
+ * The only thing that prints: a card for the guest with the hotel name, the QR, the code and
+ * short instructions in FR/EN/ES. Deliberately no room number and nothing about other stays.
+ */
+function PrintCard({ img, code, hotel }: { img: string; code: string; hotel: string }) {
+  useEffect(() => {
+    document.body.classList.add('has-print-card');
+    return () => document.body.classList.remove('has-print-card');
+  }, []);
+  return createPortal(
+    <div className="print-card" aria-hidden="true">
+      <div className="wordmark">{hotel}</div>
+      <img src={img} alt="" />
+      <div className="code">{code}</div>
+      <div className="langs">
+        {LANGS.map((l) => (
+          <div key={l} lang={l}>
+            <strong>{translate(l, 'print.title')}</strong>
+            {translate(l, 'print.scan')} {translate(l, 'print.code', { origin: window.location.host })}
+          </div>
+        ))}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function QrSheet({ qr, onClose }: { qr: { url: string; code: string; room: string } | null; onClose: () => void }) {
   const { t } = useI18n();
+  const { me } = useStaff();
+  const hotel = themeFor(me.account.propertyId).name;
   const [img, setImg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -72,6 +105,7 @@ function QrSheet({ qr, onClose }: { qr: { url: string; code: string; room: strin
       </div>
       <Notice>{t('admin.qrWarning')}</Notice>
       <div className="url no-print">{qr?.url}</div>
+      {qr && img && <PrintCard img={img} code={qr.code} hotel={hotel} />}
     </Sheet>
   );
 }

@@ -45,8 +45,8 @@ export function LangSwitch({ compact = false }: { compact?: boolean }) {
     return (
       <select className="lang-select" aria-label={t('app.language')} value={lang} onChange={(e) => setLang(e.target.value as typeof lang)}>
         {LANGS.map((l) => (
-          <option key={l} value={l} lang={l}>
-            {l.toUpperCase()} — {LANGUAGE_NAMES[l]}
+          <option key={l} value={l} lang={l} label={l.toUpperCase()}>
+            {LANGUAGE_NAMES[l]}
           </option>
         ))}
       </select>
@@ -168,8 +168,23 @@ export function DemoStrip() {
   const { t } = useI18n();
   return (
     <div className="demo-strip" role="note">
-      <strong>Demo</strong>
+      <strong>{t('app.demo')}</strong>
       {t('app.demoBanner')}
+    </div>
+  );
+}
+
+/** Shown when the guest session cannot be checked (offline or server unreachable). */
+export function Unreachable({ onRetry }: { onRetry: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="gate-body">
+      <p className="eyebrow">{t('app.unreachableEyebrow')}</p>
+      <h1 style={{ margin: '8px 0 12px' }}>{t('app.unreachableTitle')}</h1>
+      <p className="muted">{t('app.unreachableBody')}</p>
+      <button className="btn-primary btn-block" onClick={onRetry}>
+        {t('app.retry')}
+      </button>
     </div>
   );
 }

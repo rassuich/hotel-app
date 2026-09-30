@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  admin,
   Client,
   guest,
   key,
@@ -161,6 +162,25 @@ describe('re-validated quotes', () => {
     });
     expect(r.status).toBe(400);
     expect(r.body.error.code).toBe('invalid_options');
+  });
+});
+
+describe('admin catalogue edits', () => {
+  it('a partial PATCH changes only the fields sent (no defaults overwrite Spanish, fees or flags)', async () => {
+    const adm = await admin(env);
+    const pressing = serviceItem(env, 'Pressing (paid example)');
+    const before = env.ctx.db.prepare('SELECT * FROM service_items WHERE id = ?').get(pressing.id) as Record<string, unknown>;
+    expect((await adm.patch(`/api/admin/services/${pressing.id}`, { nameEs: 'Planchado' })).status).toBe(200);
+    const after = env.ctx.db.prepare('SELECT * FROM service_items WHERE id = ?').get(pressing.id) as Record<string, unknown>;
+    expect(after).toEqual({ ...before, name_es: 'Planchado' });
+    const tea = menuItem(env, 'Mint tea');
+    const itemBefore = env.ctx.db.prepare('SELECT * FROM food_items WHERE id = ?').get(tea.id) as Record<string, unknown>;
+    expect((await adm.patch(`/api/admin/food/items/${tea.id}`, { priceMinor: 4200 })).status).toBe(200);
+    const itemAfter = env.ctx.db.prepare('SELECT * FROM food_items WHERE id = ?').get(tea.id) as Record<string, unknown>;
+    expect(itemAfter).toEqual({ ...itemBefore, price_minor: 4200 });
+    const content = env.ctx.db.prepare(`SELECT * FROM content_items WHERE title_en = 'Wi-Fi (sample)'`).get() as Record<string, unknown>;
+    await adm.patch(`/api/admin/content/${content.id}`, { titleFr: 'Wi-Fi' });
+    expect(env.ctx.db.prepare('SELECT * FROM content_items WHERE id = ?').get(content.id)).toEqual({ ...content, title_fr: 'Wi-Fi' });
   });
 });
 

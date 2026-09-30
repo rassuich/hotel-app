@@ -62,7 +62,13 @@ test('only validated guests get in: every entry point lands on the language and 
   }
   await page.getByRole('button', { name: /Français/ }).click();
   await expect(page.getByRole('heading', { name: 'Validez votre séjour' })).toBeVisible();
-  await expect(page.getByRole('button', { name: "Ouvrir l'appareil photo" })).toBeVisible();
+  // The in-app scanner really opens the camera (the server's Permissions-Policy allows it for our origin).
+  await page.context().grantPermissions(['camera']);
+  await page.getByRole('button', { name: "Ouvrir l'appareil photo" }).click();
+  await expect(page.locator('.scanner video')).toBeVisible();
+  await expect.poll(() => page.locator('.scanner video').evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(2);
+  await expect(page.getByText("L'accès à l'appareil photo n'a pas été autorisé")).toHaveCount(0);
+  await page.getByRole('button', { name: "Fermer l'appareil photo" }).click();
   // A wrong code never reveals anything.
   await page.getByLabel('Code de validation', { exact: true }).fill('ZZZZ-ZZZZ-ZZZZ');
   await page.getByLabel('Numéro de chambre').fill('DEMO-101');
@@ -162,6 +168,39 @@ test('services: several ticked items become ONE request; no call; housekeeping a
   expect((await list.json()).requests.filter((r: { type: string }) => r.type === 'service')).toHaveLength(1);
 });
 
+test('services: an item that becomes unavailable during review must be acknowledged before sending', async ({ browser }) => {
+  const [link] = activationLinks();
+  const guest = await guestDevice(browser, link, 'DEMO-101');
+  const adm = await (await browser.newContext()).newPage();
+  await adm.goto('/admin');
+  await adm.getByLabel('Compte').fill('palace.admin');
+  await adm.getByLabel('Mot de passe').fill('demo-admin-pass');
+  await adm.getByRole('button', { name: 'Se connecter' }).click();
+  await expect(adm.getByRole('link', { name: 'Séjours et QR' }).first()).toBeVisible();
+
+  await guest.goto('/h/services');
+  await guest.getByLabel('Kit de rasage').check();
+  await guest.getByLabel('Brosse à dents').check();
+  await guest.getByRole('button', { name: /Vérifier la demande/ }).click();
+  // Meanwhile the hotel marks the shaving kit unavailable.
+  const services = (await (await adm.request.get('/api/admin/services')).json()).services as { id: number; nameEn: string }[];
+  const kit = services.find((x) => x.nameEn === 'Shaving kit')!;
+  const csrf = (await adm.context().cookies()).find((c) => c.name === 'pa_csrf')!.value;
+  expect((await adm.request.patch(`/api/admin/services/${kit.id}`, { data: { available: false }, headers: { 'x-csrf-token': csrf } })).status()).toBe(200);
+
+  const sheet = guest.getByRole('dialog');
+  await sheet.getByRole('button', { name: 'Envoyer la demande' }).click();
+  await expect(sheet.getByText("Kit de rasage n'est plus disponible")).toBeVisible();
+  await expect(sheet.getByRole('button', { name: 'Envoyer la demande' })).toBeDisabled();
+  await sheet.getByRole('button', { name: 'Accepter la demande mise à jour' }).click();
+  await expect(sheet.getByText(/retiré\(s\) de votre demande : Kit de rasage/)).toBeVisible();
+  await sheet.getByRole('button', { name: 'Envoyer la demande' }).click();
+  await guest.waitForURL('**/h/requests/PA-*');
+  await expect(guest.getByText('1 × Brosse à dents')).toBeVisible();
+  await expect(guest.getByText('Kit de rasage')).toHaveCount(0);
+  await adm.request.patch(`/api/admin/services/${kit.id}`, { data: { available: true }, headers: { 'x-csrf-token': csrf } });
+});
+
 test('pool orders use configured labels and in-person confirmation', async ({ browser }) => {
   const [link] = activationLinks();
   const guest = await guestDevice(browser, link, 'DEMO-101');
@@ -207,6 +246,13 @@ test('reception room move signs the old device out; checkout blocks ordering', a
   await dialog.getByRole('button', { name: 'Confirmer' }).click();
   await expect(desk.getByRole('heading', { name: /QR d'activation privé — DEMO-205/ })).toBeVisible();
   const newLink = await desk.locator('.url').innerText();
+  // Printing outputs only the guest card: QR, code and FR/EN/ES instructions — no room, no other guests.
+  await desk.emulateMedia({ media: 'print' });
+  await expect(desk.locator('.print-card')).toBeVisible();
+  await expect(desk.locator('.print-card')).not.toContainText('DEMO-');
+  await expect(desk.locator('.print-card')).toContainText('Su aplicación de huésped');
+  await expect(desk.locator('.stay').first()).toBeHidden();
+  await desk.emulateMedia({ media: 'screen' });
   await expect(desk.getByTestId('validation-code')).toHaveText(/^\w{4}-\w{4}-\w{4}$/);
   await desk.getByRole('button', { name: 'Fermer' }).click();
 

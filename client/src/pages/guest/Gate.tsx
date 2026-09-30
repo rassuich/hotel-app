@@ -8,7 +8,7 @@ import { useGuest } from '../../lib/guest';
 import { useBrand, Wordmark } from '../../lib/theme';
 import { parseScanned } from '../../lib/scan';
 import QrScanner from '../../components/QrScanner';
-import { ErrorNotice, LangSwitch, Loading, Notice } from '../../components/ui';
+import { ErrorNotice, LangSwitch, Loading, Notice, Unreachable } from '../../components/ui';
 import { LANGS } from '../../../../shared/src/api';
 
 /** Trilingual on purpose: shown before any language is chosen. */
@@ -64,7 +64,9 @@ export default function Gate() {
   }, [hint]);
 
   if (guest.loading) return <Loading />;
-  if (guest.me) return <Navigate to={guest.me.capability === 'order' ? '/h' : '/h/stay'} replace state={location.state} />;
+  // A pending private QR is always honoured, even on a device already signed in (it switches stay).
+  if (guest.me && !token) return <Navigate to={guest.me.capability === 'order' ? '/h' : '/h/stay'} replace state={location.state} />;
+  if (!guest.me && guest.unavailable && !token) return <Unreachable onRetry={() => void guest.refresh()} />;
 
   const onScan = (text: string) => {
     setScanning(false);
@@ -124,9 +126,13 @@ export default function Gate() {
       <main className="gate-body" id="main">
         {guest.revoked && (
           <Notice kind="bad" role="alert">
-            <p className="mb0">{t('stay.revoked')}</p>
+            <p>{t('stay.revoked')}</p>
+            <button type="button" className="btn-text" onClick={guest.clearRevoked}>
+              {t('app.close')}
+            </button>
           </Notice>
         )}
+        {guest.me && token && chosen && <Notice>{t('gate.switchStay', { room: guest.me.roomLabel ?? '—' })}</Notice>}
         {!chosen ? (
           <LanguageStep />
         ) : token ? (

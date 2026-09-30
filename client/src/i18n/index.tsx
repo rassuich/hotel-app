@@ -20,8 +20,25 @@ function lookup(dict: unknown, key: string): string | undefined {
   return typeof cur === 'string' ? cur : undefined;
 }
 
+const pluralRules: Partial<Record<Lang, Intl.PluralRules>> = {};
+function pluralCategory(lang: Lang, count: number): string {
+  pluralRules[lang] ??= new Intl.PluralRules(LOCALES[lang]);
+  return pluralRules[lang]!.select(count);
+}
+
+/**
+ * Looks a key up in the language, then English. When `params.count` is a number and
+ * the dictionary has `key_one` / `key_other` variants, the right plural form is used.
+ */
 export function translate(lang: Lang, key: string, params?: Record<string, string | number>): string {
-  const raw = lookup(dictionaries[lang], key) ?? lookup(dictionaries.en, key) ?? key;
+  let raw: string | undefined;
+  if (typeof params?.count === 'number') {
+    const cat = pluralCategory(lang, params.count);
+    for (const d of [dictionaries[lang], dictionaries.en]) {
+      raw ??= lookup(d, `${key}_${cat}`) ?? lookup(d, `${key}_other`);
+    }
+  }
+  raw ??= lookup(dictionaries[lang], key) ?? lookup(dictionaries.en, key) ?? key;
   return params ? raw.replace(/\{(\w+)\}/g, (_, k: string) => String(params[k] ?? `{${k}}`)) : raw;
 }
 
@@ -47,6 +64,8 @@ function browserLang(): Lang {
 
 interface I18n {
   lang: Lang;
+  /** IANA zone used for guest-facing times (the hotel's), or undefined for the device zone. */
+  setTimeZone: (tz: string | undefined) => void;
   /** False until the guest has explicitly picked a language on this device. */
   chosen: boolean;
   setLang: (l: Lang) => void;
@@ -62,6 +81,7 @@ const Ctx = createContext<I18n | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [saved, setSaved] = useState<Lang | null>(storedLang);
+  const [timeZone, setTimeZone] = useState<string | undefined>(undefined);
   const lang = saved ?? browserLang();
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -76,22 +96,30 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
   const value = useMemo<I18n>(() => {
     const locale = LOCALES[lang];
+    const tz = (() => {
+      try {
+        return timeZone ? new Intl.DateTimeFormat(locale, { timeZone }).resolvedOptions().timeZone : undefined;
+      } catch {
+        return undefined;
+      }
+    })();
     return {
       lang,
+      setTimeZone,
       chosen: saved !== null,
       setLang,
       t: (key, params) => translate(lang, key, params),
       l: (v) => pick(v, lang),
       money: (minor, currency) => formatMoney(minor, currency, lang),
-      time: (iso) => new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
-      dateTime: (iso) => new Date(iso).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' }),
+      time: (iso) => new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', timeZone: tz }),
+      dateTime: (iso) => new Date(iso).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: tz }),
       err: (code) => {
         const k = `errors.${code ?? 'generic'}`;
         const v = translate(lang, k);
         return v === k ? translate(lang, 'errors.generic') : v;
       },
     };
-  }, [lang, saved, setLang]);
+  }, [lang, saved, setLang, timeZone]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

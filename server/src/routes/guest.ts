@@ -2,11 +2,13 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import type { AppContext } from '../context';
 import { ApiError, forbidden } from '../lib/errors';
 import { parse } from '../lib/http';
-import { rateLimit } from '../lib/rateLimit';
+import { failureLimiter } from '../lib/rateLimit';
+import { sha256 } from '../lib/crypto';
 import { nowIso } from '../lib/clock';
 import { channels } from '../live/hub';
 import { currentAssignment, latestAssignment } from '../services/rows';
 import {
+  GUEST_COOKIE,
   activate,
   clearGuestCookie,
   guestSessionStillValid,
@@ -40,16 +42,28 @@ export function guestRoutes(ctx: AppContext): Router {
     return g;
   };
 
-  r.post(
-    '/activate',
-    rateLimit({ name: 'activate', windowMs: ctx.config.rateLimit.windowMs, max: ctx.config.rateLimit.activationMax }),
-    (req, res) => {
-      const body = parse(S.activateBody, req.body);
-      const { cookieToken } = activate(ctx, body);
-      setGuestCookie(ctx, res, cookieToken);
-      res.status(201).json({ ok: true });
-    },
-  );
+  // Only failed attempts count toward the per-IP limit.
+  const activationFailures = failureLimiter({ windowMs: ctx.config.rateLimit.windowMs, max: ctx.config.rateLimit.activationMax });
+  r.post('/activate', (req, res) => {
+    activationFailures.check(req);
+    const body = parse(S.activateBody, req.body);
+    let cookieToken: string;
+    try {
+      cookieToken = activate(ctx, body).cookieToken;
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'activation_failed') activationFailures.fail(req);
+      throw err;
+    }
+    // A device validating a new credential replaces any session it already had.
+    const previous = req.cookies?.[GUEST_COOKIE] as string | undefined;
+    if (previous) {
+      ctx.db
+        .prepare(`UPDATE guest_sessions SET revoked_at = ?, revoke_reason = 'replaced' WHERE token_hash = ? AND revoked_at IS NULL`)
+        .run(nowIso(), sha256(previous));
+    }
+    setGuestCookie(ctx, res, cookieToken);
+    res.status(201).json({ ok: true });
+  });
 
   r.get('/me', (req, res) => {
     const g = loadGuest(ctx, req);
@@ -62,7 +76,8 @@ export function guestRoutes(ctx: AppContext): Router {
     });
     const me: GuestMeDto = {
       capability: g.session.capability,
-      property: { id: g.property.id, name: g.property.name },
+      property: { id: g.property.id, name: g.property.name, timezone: g.property.timezone },
+      language: g.session.language === 'en' || g.session.language === 'es' ? g.session.language : 'fr',
       roomLabel: g.session.capability === 'order' ? (a?.room_label ?? null) : null,
       guestName: g.stay.guest_name,
       stayStatus: g.stay.status,

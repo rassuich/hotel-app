@@ -31,6 +31,11 @@ export interface AppConfig {
   billProvider: 'none';
   clientDist: string | null;
   silentLogs: boolean;
+  /**
+   * Secret used to HMAC typed validation codes. From ACTIVATION_CODE_SECRET, or
+   * generated once into a file next to the database (never inside it).
+   */
+  codeSecret: string | null;
 }
 
 function num(v: string | undefined, fallback: number): number {
@@ -66,5 +71,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     billProvider: 'none',
     clientDist: env.CLIENT_DIST === '' ? null : env.CLIENT_DIST || path.resolve('dist', 'client'),
     silentLogs: env.SILENT_LOGS === 'true',
+    codeSecret: env.ACTIVATION_CODE_SECRET || null,
   };
 }

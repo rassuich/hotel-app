@@ -25,3 +25,31 @@ export function rateLimit(opts: { windowMs: number; max: number; name: string })
     next();
   };
 }
+
+/**
+ * Failure-only limiter: a request is refused once an IP has accumulated `max`
+ * failures in the window; successful attempts cost nothing.
+ */
+export function failureLimiter(opts: { windowMs: number; max: number }) {
+  const fails = new Map<string, { count: number; resetAt: number }>();
+  const key = (req: Request) => req.ip ?? 'unknown';
+  return {
+    check(req: Request) {
+      const e = fails.get(key(req));
+      const now = Date.now();
+      if (e && e.resetAt > now && e.count >= opts.max) {
+        throw new ApiError(429, 'rate_limited', { retryAfterSeconds: Math.ceil((e.resetAt - now) / 1000) });
+      }
+    },
+    fail(req: Request) {
+      const now = Date.now();
+      let e = fails.get(key(req));
+      if (!e || e.resetAt <= now) {
+        e = { count: 0, resetAt: now + opts.windowMs };
+        fails.set(key(req), e);
+      }
+      e.count += 1;
+      if (fails.size > 10_000) for (const [k, v] of fails) if (v.resetAt <= now) fails.delete(k);
+    },
+  };
+}

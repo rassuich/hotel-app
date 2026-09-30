@@ -88,7 +88,7 @@ export default function Queue() {
     let on = false;
     const id = setInterval(() => {
       on = !on;
-      document.title = on ? `🔔 ${alert}` : baseTitle.current;
+      document.title = on ? `(!) ${alert}` : baseTitle.current;
     }, 1000);
     const clear = setTimeout(() => setAlert(null), 8000);
     return () => {

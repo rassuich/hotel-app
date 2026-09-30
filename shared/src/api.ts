@@ -145,7 +145,9 @@ export type GuestCapability = 'order' | 'post_stay';
 
 export interface GuestMeDto {
   capability: GuestCapability;
-  property: { id: string; name: string };
+  property: { id: string; name: string; timezone: string };
+  /** Language stored on the session (set at validation, updated when the guest switches). */
+  language: Lang;
   roomLabel: string | null;
   guestName: string;
   stayStatus: 'active' | 'checked_out';

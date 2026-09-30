@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../../i18n';
-import { ApiError, newKey, post } from '../../lib/api';
+import { ApiError, get, newKey, post } from '../../lib/api';
 import { useQuery } from '../../lib/hooks';
 import { useOnline } from '../../lib/live';
 import { useGuest } from '../../lib/guest';
@@ -35,6 +35,10 @@ export default function Services() {
   const [submitKey, setSubmitKey] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  // Set when the server reports that prices/availability changed: sending stays blocked until
+  // the guest explicitly accepts the updated request. Names come from what was actually sent.
+  const [changed, setChanged] = useState<{ issues: QuoteLineIssue[]; sent: { itemId: number; name: ServiceItem['name'] }[] } | null>(null);
+  const [removed, setRemoved] = useState<string[]>([]);
 
   const items = q.data?.services ?? [];
   const selected = useMemo(() => items.filter((s) => picked[s.id]), [items, picked]);
@@ -47,7 +51,9 @@ export default function Services() {
     setPicked(fn);
     setSubmitKey(null);
     setError(null);
+    setRemoved([]);
   };
+  const MAX_LINES = 30;
   const toggle = (s: ServiceItem) =>
     change((p) => {
       const next = { ...p };
@@ -62,6 +68,7 @@ export default function Services() {
     setSubmitKey(key);
     setSending(true);
     setError(null);
+    const sent = selected.map((s) => ({ itemId: s.id, name: s.name }));
     try {
       const r = await post<{ request: GuestRequestDto }>('/api/guest/requests/service', {
         idempotencyKey: key,
@@ -82,23 +89,50 @@ export default function Services() {
       nav(`/h/requests/${r.request.ref}`, { state: { justSent: true } });
     } catch (e) {
       const err = e as ApiError;
-      setError(err);
-      if (err.status >= 400 && err.status < 500) {
-        setSubmitKey(null);
-        if (err.code === 'quote_changed') void q.reload();
+      if (err.code === 'quote_changed') {
+        setChanged({ issues: err.details?.issues ?? [], sent });
+      } else {
+        setError(err);
       }
+      if (err.status >= 400 && err.status < 500) setSubmitKey(null);
     } finally {
       setSending(false);
     }
   };
 
   const issueText = (i: QuoteLineIssue) => {
-    const s = selected[i.index];
+    const line = changed?.sent[i.index];
     const price = i.currentUnitPriceMinor !== undefined ? money(i.currentUnitPriceMinor, currency) : '';
-    return t(`cart.issue_${i.issue}`, { item: s ? l(s.name) : '', price, count: i.maxQuantity ?? '' });
+    return t(`cart.issue_${i.issue}`, { item: line ? l(line.name) : '', price, count: i.maxQuantity ?? '' });
   };
 
-  const canSend = !!me?.canOrder && online && selected.length > 0 && (dest === 'room' || locationId !== '') && !sending;
+  /** Applies the current catalogue: drops unavailable/removed items, clamps quantities, shows new prices. */
+  const acceptChanges = async () => {
+    try {
+      const fresh = (await get<{ services: ServiceItem[] }>('/api/guest/catalog/services')).services;
+      const byId = new Map(fresh.map((s) => [s.id, s]));
+      const gone: string[] = [];
+      const next: Record<number, Pick> = {};
+      for (const [id, p] of Object.entries(picked)) {
+        const s = byId.get(Number(id));
+        const old = items.find((x) => x.id === Number(id));
+        if (!s || !s.available) {
+          gone.push(l((s ?? old)?.name));
+          continue;
+        }
+        next[s.id] = { ...p, quantity: Math.min(p.quantity, s.maxQuantity) };
+      }
+      await q.reload();
+      setPicked(next);
+      setRemoved(gone);
+      setChanged(null);
+      setSubmitKey(null);
+    } catch (e) {
+      setError(e as ApiError);
+    }
+  };
+
+  const canSend = !!me?.canOrder && online && selected.length > 0 && (dest === 'room' || locationId !== '') && !sending && !changed;
 
   return (
     <>
@@ -118,30 +152,44 @@ export default function Services() {
       <ul className="list" style={{ borderTop: 0 }}>
         {items.map((s) => {
           const p = picked[s.id];
-          const disabled = !s.available || !property.requestsEnabled;
+          const full = selected.length >= MAX_LINES;
+          const disabled = !s.available || !property.requestsEnabled || full;
           return (
             <li key={s.id} className={`svc${s.available ? '' : ' unavailable'}`}>
-              <input type="checkbox" id={`svc-${s.id}`} checked={!!p} disabled={disabled && !p} onChange={() => toggle(s)} />
-              <label htmlFor={`svc-${s.id}`} className="title" style={{ margin: 0, letterSpacing: 0, textTransform: 'none', color: 'inherit', fontWeight: 400 }}>
+              <input
+                type="checkbox"
+                id={`svc-${s.id}`}
+                checked={!!p}
+                disabled={disabled && !p}
+                aria-describedby={`svc-${s.id}-price svc-${s.id}-desc`}
+                onChange={() => toggle(s)}
+              />
+              <label htmlFor={`svc-${s.id}`} className="title" style={{ margin: 0, letterSpacing: 0, textTransform: 'none', color: 'inherit', fontWeight: 400, minHeight: 44 }}>
                 {l(s.name)}
               </label>
-              <span className="tag num">{s.complimentary ? t('services.complimentary') : money(s.priceMinor, s.currency)}</span>
+              <span className="tag num" id={`svc-${s.id}-price`}>
+                {s.complimentary ? t('services.complimentary') : money(s.priceMinor, s.currency)}
+              </span>
               {(l(s.description) || !s.available) && (
-                <span className="muted" style={{ gridColumn: '2 / -1', fontSize: '0.88rem' }}>
+                <span className="muted" id={`svc-${s.id}-desc`} style={{ gridColumn: '2 / -1', fontSize: '0.88rem' }}>
                   {s.available ? l(s.description) : t('food.unavailable')}
                 </span>
               )}
               {p && (
                 <div className="more">
-                  {s.maxQuantity > 1 && (
+                  {(s.maxQuantity > 1 || p.quantity > 1) && (
                     <div>
                       <span className="label">{t('food.quantity')}</span>
-                      <Stepper value={p.quantity} max={s.maxQuantity} onChange={(v) => update(s.id, { quantity: v })} label={`${t('food.quantity')} ${l(s.name)}`} />
+                      <Stepper value={p.quantity} max={Math.max(s.maxQuantity, 1)} onChange={(v) => update(s.id, { quantity: Math.min(v, s.maxQuantity) })} label={`${t('food.quantity')} ${l(s.name)}`} />
+                      {p.quantity > s.maxQuantity && <div className="help">{t('cart.issue_quantity_limit', { item: l(s.name), count: s.maxQuantity })}</div>}
                     </div>
                   )}
                   {s.allowDetails && (
                     <div className="field">
-                      <label htmlFor={`d-${s.id}`}>{t('services.details')}</label>
+                      <label htmlFor={`d-${s.id}`}>
+                        {t('services.details')}
+                        <span className="visually-hidden"> — {l(s.name)}</span>
+                      </label>
                       <input id={`d-${s.id}`} maxLength={300} value={p.details} placeholder={t('services.detailsPlaceholder')} onChange={(e) => update(s.id, { details: e.target.value })} />
                     </div>
                   )}
@@ -152,6 +200,11 @@ export default function Services() {
         })}
       </ul>
 
+      {selected.length >= MAX_LINES && (
+        <div className="pad">
+          <Notice kind="plain">{t('services.maxLines', { count: MAX_LINES })}</Notice>
+        </div>
+      )}
       {selected.length > 0 && (
         <div className="dock">
           <button type="button" onClick={() => setReviewing(true)}>
@@ -217,18 +270,21 @@ export default function Services() {
         </p>
         {!online && <Notice kind="bad">{t('app.offline')}</Notice>}
         {me && !me.canOrder && <ErrorNotice code={me.orderingBlockedReason ?? undefined} />}
-        {error?.code === 'quote_changed' ? (
+        {removed.length > 0 && <Notice kind="plain">{t('services.removed', { items: removed.join(', ') })}</Notice>}
+        {changed && (
           <Notice kind="bad" role="alert">
             <p>{t('cart.quoteChanged')}</p>
             <ul>
-              {(error.details?.issues ?? []).map((i: QuoteLineIssue) => (
+              {changed.issues.map((i) => (
                 <li key={`${i.index}-${i.issue}`}>{issueText(i)}</li>
               ))}
             </ul>
+            <button type="button" className="btn-primary btn-sm" onClick={() => void acceptChanges()}>
+              {t('services.acceptChanges')}
+            </button>
           </Notice>
-        ) : (
-          error && <ErrorNotice code={error.code} />
         )}
+        {error && <ErrorNotice code={error.code} />}
       </Sheet>
     </>
   );

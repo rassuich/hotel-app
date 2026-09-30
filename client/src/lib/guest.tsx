@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ApiError, get, onApiError, patch, post } from './api';
 import { useI18n } from '../i18n';
 import { useLiveStream, type LiveStatus } from './live';
@@ -7,6 +7,8 @@ import type { GuestMeDto } from '../../../shared/src/api';
 interface GuestState {
   me: GuestMeDto | null;
   loading: boolean;
+  /** True when the session could not be checked (offline, server error): not the same as "no session". */
+  unavailable: boolean;
   /** Set when the server revoked this device (room move, rotation, checkout expiry). */
   revoked: boolean;
   /** Increments whenever live updates say stay data changed; pages refetch on it. */
@@ -40,6 +42,7 @@ const readRevoked = () => {
 export function GuestProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<GuestMeDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unavailable, setUnavailable] = useState(false);
   const [revoked, setRevokedState] = useState(readRevoked);
   const setRevoked = useCallback((on: boolean) => {
     storeRevoked(on);
@@ -51,13 +54,26 @@ export function GuestProvider({ children }: { children: ReactNode }) {
     try {
       const r = await get<{ me: GuestMeDto }>('/api/guest/me');
       setMe(r.me);
+      setUnavailable(false);
     } catch (e) {
       const err = e as ApiError;
-      if (err.status === 401) setMe(null);
+      // Only a definite 401 means "no session"; anything else keeps what we knew.
+      if (err.status === 401) {
+        setMe(null);
+        setUnavailable(false);
+      } else {
+        setUnavailable(true);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    const retry = () => void refresh();
+    window.addEventListener('online', retry);
+    return () => window.removeEventListener('online', retry);
+  }, [refresh]);
 
   useEffect(() => {
     void refresh();
@@ -71,12 +87,27 @@ export function GuestProvider({ children }: { children: ReactNode }) {
     });
   }, [refresh, setRevoked]);
 
-  // Keep the session's language (used for outside-app notifications) in step with the UI.
-  const { lang } = useI18n();
+  // Keep the session language (used for outside-app notifications) in step with the UI.
+  // A device that never chose explicitly adopts the session's language instead of overwriting it.
+  const { lang, chosen, setLang, setTimeZone } = useI18n();
   const ordering = me?.capability === 'order';
   useEffect(() => {
-    if (ordering) void patch('/api/guest/language', { language: lang }).catch(() => undefined);
-  }, [lang, ordering]);
+    if (me && !chosen) setLang(me.language);
+  }, [me, chosen, setLang]);
+  const synced = useRef<string | null>(null);
+  useEffect(() => {
+    if (!me) synced.current = null;
+    else if (synced.current === null) synced.current = me.language;
+    if (!ordering || !chosen || synced.current === lang) return;
+    synced.current = lang;
+    void patch('/api/guest/language', { language: lang }).catch(() => {
+      synced.current = null;
+    });
+  }, [lang, ordering, chosen, me]);
+  // Guest-facing times are shown in the hotel's time zone.
+  useEffect(() => {
+    setTimeZone(me?.property.timezone);
+  }, [me?.property.timezone, setTimeZone]);
 
   const streamUrl = me?.capability === 'order' ? '/api/guest/stream' : null;
   const live = useLiveStream(streamUrl, {
@@ -91,8 +122,8 @@ export function GuestProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ me, loading, revoked, version, live, refresh, signOut, clearRevoked: () => setRevoked(false) }),
-    [me, loading, revoked, version, live, refresh, signOut, setRevoked],
+    () => ({ me, loading, unavailable, revoked, version, live, refresh, signOut, clearRevoked: () => setRevoked(false) }),
+    [me, loading, unavailable, revoked, version, live, refresh, signOut, setRevoked],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

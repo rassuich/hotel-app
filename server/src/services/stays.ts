@@ -1,7 +1,7 @@
 import type { AppContext } from '../context';
 import type { DB } from '../db';
 import { conflict, notFound, badRequest } from '../lib/errors';
-import { newId, normalizeCode, randomCode, randomToken, sha256 } from '../lib/crypto';
+import { codeHash, newId, normalizeCode, randomCode, randomToken, sha256 } from '../lib/crypto';
 import { addHours, nowIso } from '../lib/clock';
 import { channels } from '../live/hub';
 import { currentAssignment, getStay, latestAssignment, type StayRow, type PropertyRow } from './rows';
@@ -38,7 +38,7 @@ function issueCredential(ctx: AppContext, propertyId: string, stayId: string, re
   const code = randomCode();
   ctx.db
     .prepare('INSERT INTO activation_credentials (stay_id, token_hash, code_hash, assignment_revision, created_at) VALUES (?, ?, ?, ?, ?)')
-    .run(stayId, sha256(token), sha256(normalizeCode(code)), revision, nowIso());
+    .run(stayId, sha256(token), codeHash(ctx.config.codeSecret!, normalizeCode(code)), revision, nowIso());
   // The property id (not secret) lets the page show the right verification field;
   // the token itself travels only in the fragment, which browsers never send to servers.
   return { token, code, url: `${ctx.config.publicBaseUrl}/activate?p=${encodeURIComponent(propertyId)}#t=${token}` };

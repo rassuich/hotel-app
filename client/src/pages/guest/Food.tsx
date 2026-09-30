@@ -38,7 +38,7 @@ function ItemSheet({ item, onClose, onAdd, canOrder }: { item: FoodItem; onClose
         canOrder && item.available ? (
           <>
             <Stepper value={qty} max={20} onChange={setQty} label={t('food.quantity')} />
-            <button className="btn-primary" style={{ flex: 1 }} disabled={!valid} onClick={() => onAdd(selected, qty)}>
+            <button className="btn-primary" disabled={!valid} onClick={() => onAdd(selected, qty)}>
               {t('food.addToOrder')} · <span className="num">{money(price * qty, item.currency)}</span>
             </button>
           </>
@@ -93,7 +93,7 @@ export default function Food() {
   return (
     <>
       <div className="page-head">
-        <span className="eyebrow">Room Service</span>
+        <span className="eyebrow">{t('food.eyebrow')}</span>
         <h1>{t('food.title')}</h1>
       </div>
       {!property.requestsEnabled && (

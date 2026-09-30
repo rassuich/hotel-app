@@ -45,15 +45,16 @@ describe('translations', () => {
 
   it('has no unused keys (outside runtime-built families)', () => {
     const src = clientSource();
-    const used = new Set([...src.matchAll(/\bt\(\s*'([a-zA-Z_.]+)'/g)].map((m) => m[1]));
-    expect([...enKeys].filter((k) => !used.has(k) && !DYNAMIC.some((d) => k.startsWith(d)))).toEqual([]);
+    const used = new Set([...src.matchAll(/\b(?:t\(\s*|translate\(\w+,\s*)'([a-zA-Z_.]+)'/g)].map((m) => m[1]));
+    const base = (k: string) => k.replace(/_(zero|one|two|few|many|other)$/, '');
+    expect([...enKeys].filter((k) => !used.has(k) && !used.has(base(k)) && !DYNAMIC.some((d) => k.startsWith(d)))).toEqual([]);
   });
 
   it('every literal t("...") key used in the client exists', () => {
     const src = clientSource();
-    const used = [...src.matchAll(/\bt\(\s*'([a-zA-Z_.]+)'/g)].map((m) => m[1]);
+    const used = [...src.matchAll(/\b(?:t\(\s*|translate\(\w+,\s*)'([a-zA-Z_.]+)'/g)].map((m) => m[1]);
     expect(used.length).toBeGreaterThan(100);
-    expect(used.filter((k) => !enKeys.has(k))).toEqual([]);
+    expect(used.filter((k) => !enKeys.has(k) && !enKeys.has(`${k}_other`))).toEqual([]);
   });
 
   it('covers every dynamic key family (states, progress, attempts, POS, issues)', () => {
@@ -81,6 +82,9 @@ describe('translations', () => {
   it('interpolates parameters', () => {
     expect(translate('fr', 'home.greeting', { hotel: "Le Palace d'Anfa" })).toBe("Bienvenue au Le Palace d'Anfa");
     expect(translate('en', 'requests.ref', { ref: 'PA-0001' })).toBe('Ref. PA-0001');
-    expect(translate('es', 'services.selectedCount', { count: 3 })).toContain('3');
+    expect(translate('es', 'services.selectedCount', { count: 1 })).toBe('1 artículo');
+    expect(translate('es', 'services.selectedCount', { count: 3 })).toBe('3 artículos');
+    expect(translate('fr', 'food.itemsCount', { count: 0 })).toBe('0 article');
+    expect(translate('en', 'admin.devicesSignedIn', { count: 2 })).toBe('2 devices');
   });
 });

@@ -49,6 +49,17 @@ function update(db: DB, table: string, id: number, scopeSql: string, scopeParams
 
 const text = (max = 200) => z.string().trim().max(max);
 
+/**
+ * PATCH bodies: validate against the partial schema, then keep ONLY the keys the
+ * client actually sent. Otherwise Zod defaults (e.g. complimentary=true, nameEs='')
+ * would silently overwrite columns the admin never touched.
+ */
+function patchBody<T extends z.ZodObject<z.ZodRawShape>>(schema: T, body: unknown): Record<string, unknown> {
+  const parsed = parse(schema.partial(), body) as Record<string, unknown>;
+  const sent = body && typeof body === 'object' ? Object.keys(body as object) : [];
+  return Object.fromEntries(Object.entries(parsed).filter(([k]) => sent.includes(k)));
+}
+
 const contentSchema = z.object({
   kind: z.enum(['info', 'hours', 'contact', 'event']),
   titleFr: text().min(1),
@@ -233,7 +244,7 @@ export function adminRoutes(ctx: AppContext): Router {
   });
   r.patch('/rooms/:id', (req, res) => {
     const s = admin(req);
-    update(db, 'rooms', num(req.params.id), 'property_id = @pid', pid(s), parse(roomSchema.partial(), req.body));
+    update(db, 'rooms', num(req.params.id), 'property_id = @pid', pid(s), patchBody(roomSchema, req.body));
     res.json({ ok: true });
   });
 
@@ -247,7 +258,7 @@ export function adminRoutes(ctx: AppContext): Router {
   });
   r.patch('/locations/:id', (req, res) => {
     const s = admin(req);
-    update(db, 'delivery_locations', num(req.params.id), 'property_id = @pid', pid(s), parse(locationSchema.partial(), req.body));
+    update(db, 'delivery_locations', num(req.params.id), 'property_id = @pid', pid(s), patchBody(locationSchema, req.body));
     res.json({ ok: true });
   });
 
@@ -262,7 +273,7 @@ export function adminRoutes(ctx: AppContext): Router {
   });
   r.patch('/content/:id', (req, res) => {
     const s = admin(req);
-    update(db, 'content_items', num(req.params.id), 'property_id = @pid', pid(s), parse(contentSchema.partial(), req.body));
+    update(db, 'content_items', num(req.params.id), 'property_id = @pid', pid(s), patchBody(contentSchema, req.body));
     res.json({ ok: true });
   });
 
@@ -296,7 +307,7 @@ export function adminRoutes(ctx: AppContext): Router {
   });
   r.patch('/food/categories/:id', (req, res) => {
     const s = admin(req);
-    update(db, 'food_categories', num(req.params.id), 'property_id = @pid', pid(s), parse(categorySchema.partial(), req.body));
+    update(db, 'food_categories', num(req.params.id), 'property_id = @pid', pid(s), patchBody(categorySchema, req.body));
     res.json({ ok: true });
   });
   r.post('/food/items', (req, res) => {
@@ -308,8 +319,8 @@ export function adminRoutes(ctx: AppContext): Router {
   });
   r.patch('/food/items/:id', (req, res) => {
     const s = admin(req);
-    const b = parse(foodItemSchema.partial(), req.body);
-    if (b.categoryId) ownsCategory(s.propertyId, b.categoryId);
+    const b = patchBody(foodItemSchema, req.body);
+    if (b.categoryId !== undefined) ownsCategory(s.propertyId, Number(b.categoryId));
     update(db, 'food_items', num(req.params.id), 'property_id = @pid', pid(s), b);
     res.json({ ok: true });
   });
@@ -321,7 +332,7 @@ export function adminRoutes(ctx: AppContext): Router {
   });
   r.patch('/food/option-groups/:id', (req, res) => {
     const s = admin(req);
-    const b = parse(groupSchema.omit({ foodItemId: true }).partial(), req.body);
+    const b = patchBody(groupSchema.omit({ foodItemId: true }), req.body);
     update(db, 'food_option_groups', num(req.params.id), 'food_item_id IN (SELECT id FROM food_items WHERE property_id = @pid)', pid(s), b);
     res.json({ ok: true });
   });
@@ -333,7 +344,7 @@ export function adminRoutes(ctx: AppContext): Router {
   });
   r.patch('/food/options/:id', (req, res) => {
     const s = admin(req);
-    const b = parse(optionSchema.omit({ groupId: true }).partial(), req.body);
+    const b = patchBody(optionSchema.omit({ groupId: true }), req.body);
     update(
       db,
       'food_options',
@@ -365,7 +376,7 @@ export function adminRoutes(ctx: AppContext): Router {
   });
   r.patch('/services/:id', (req, res) => {
     const s = admin(req);
-    const b = parse(serviceSchema.partial(), req.body);
+    const b = patchBody(serviceSchema, req.body) as { complimentary?: boolean; priceMinor?: number };
     const current = db.prepare('SELECT complimentary, price_minor FROM service_items WHERE id = ? AND property_id = ?').get(num(req.params.id), s.propertyId) as
       | { complimentary: number; price_minor: number }
       | undefined;
@@ -379,7 +390,7 @@ export function adminRoutes(ctx: AppContext): Router {
   r.get('/accounts', (req, res) => {
     const s = admin(req);
     const accounts = db
-      .prepare('SELECT id, role, username, display_name_fr, display_name_en, active FROM department_accounts WHERE property_id = ? ORDER BY role')
+      .prepare('SELECT id, role, username, display_name_fr, display_name_en, display_name_es, active FROM department_accounts WHERE property_id = ? ORDER BY role')
       .all(s.propertyId) as Record<string, unknown>[];
     const devices = db
       .prepare('SELECT d.* FROM devices d JOIN department_accounts a ON a.id = d.account_id WHERE a.property_id = ? ORDER BY d.name')
@@ -398,7 +409,7 @@ export function adminRoutes(ctx: AppContext): Router {
   });
   r.patch('/devices/:id', (req, res) => {
     const s = admin(req);
-    const b = parse(deviceSchema.omit({ accountId: true }).partial(), req.body);
+    const b = patchBody(deviceSchema.omit({ accountId: true }), req.body);
     update(db, 'devices', num(req.params.id), 'account_id IN (SELECT id FROM department_accounts WHERE property_id = @pid)', pid(s), b);
     res.json({ ok: true });
   });

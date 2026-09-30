@@ -1,7 +1,8 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import type { AppConfig } from './config';
 import type { AppContext } from './context';
 import { migrate, openDatabase, type DB } from './db';
@@ -36,7 +37,19 @@ export interface BuildOptions {
   startWorker?: boolean;
 }
 
-export async function buildApp(config: AppConfig, opts: BuildOptions = {}): Promise<BuiltApp> {
+/** Loads (or creates once, mode 0600) the validation-code secret stored beside the database file. */
+function resolveCodeSecret(config: AppConfig): string {
+  if (config.codeSecret) return config.codeSecret;
+  if (config.dbPath === ':memory:') return randomBytes(32).toString('hex');
+  const file = path.join(path.dirname(config.dbPath), 'activation-code.secret');
+  if (existsSync(file)) return readFileSync(file, 'utf8').trim();
+  const secret = randomBytes(32).toString('hex');
+  writeFileSync(file, secret + '\n', { mode: 0o600 });
+  return secret;
+}
+
+export async function buildApp(inputConfig: AppConfig, opts: BuildOptions = {}): Promise<BuiltApp> {
+  const config: AppConfig = { ...inputConfig, codeSecret: resolveCodeSecret(inputConfig) };
   const db = opts.db ?? openDatabase(config.dbPath);
   migrate(db);
   const log = opts.logger ?? createLogger(config.silentLogs);

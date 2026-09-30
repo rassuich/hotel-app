@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomInt, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomInt, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 
 /** 256-bit, URL-safe, unguessable token (activation QR, session cookies). */
 export function randomToken(bytes = 32): string {
@@ -57,4 +57,9 @@ export function normalizeCode(input: string): string {
     .replace(/O/g, '0')
     .replace(/[IL]/g, '1')
     .replace(/U/g, 'V');
+}
+
+/** Keyed hash of a normalised validation code (the secret lives outside the database). */
+export function codeHash(secret: string, normalizedCode: string): string {
+  return createHmac('sha256', secret).update(normalizedCode).digest('hex');
 }

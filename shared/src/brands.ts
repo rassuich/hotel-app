@@ -18,6 +18,10 @@ export interface BrandTheme {
   accentText: string;
   /** Text colour on an accent-filled button (charter ink or cream, whichever passes 4.5:1). */
   onAccent: string;
+  /** Pressed/hover button fill: the charter deep shade, darkened minimally only if cream text would fail 4.5:1. */
+  accentPressed: string;
+  /** Text colour on the pressed/hover button. */
+  onAccentDeep: string;
   paper: string;
   paperDeep: string;
   card: string;
@@ -79,6 +83,9 @@ interface CharterColours {
 
 function build(c: CharterColours): BrandTheme {
   const onAccent = contrast(c.cream, c.accent) >= 4.5 ? c.cream : c.ink;
+  const accentPressed = readable(c.accentDeep, c.cream, c.ink);
+  const onAccentDeep = c.cream;
+  const paperDeep = c.paperDeep ?? mix(c.paper, c.ink, 0.05);
   return {
     id: c.id,
     name: c.name,
@@ -87,12 +94,15 @@ function build(c: CharterColours): BrandTheme {
     accentTint: c.accentTint ?? mix(c.paper, c.accent, 0.1),
     accentText: readable(c.accentDeep, c.paper, c.ink),
     onAccent,
+    accentPressed,
+    onAccentDeep,
     paper: c.paper,
-    paperDeep: c.paperDeep ?? mix(c.paper, c.ink, 0.05),
+    paperDeep,
     card: c.card ?? mix(c.paper, '#ffffff', 0.6),
     ink: c.ink,
-    // Charter "Slate" is kept when readable; otherwise nudged toward ink to reach 4.5:1 for small text.
-    muted: readable(c.muted ?? mix(c.ink, c.paper, 0.4), c.paper, c.ink),
+    // Charter "Slate" is kept when readable; otherwise nudged toward ink to reach 4.5:1 for small
+    // text on the darkest surface it is used on (paperDeep).
+    muted: readable(c.muted ?? mix(c.ink, c.paper, 0.4), paperDeep, c.ink),
     rule: mix(c.paper, c.ink, 0.16),
     cream: c.cream,
     logo: null,
@@ -155,5 +165,5 @@ export const BRAND_THEMES: Record<string, BrandTheme> = {
 };
 
 export function themeFor(propertyId: string | null | undefined): BrandTheme {
-  return (propertyId && BRAND_THEMES[propertyId]) || GROUP_THEME;
+  return propertyId && Object.prototype.hasOwnProperty.call(BRAND_THEMES, propertyId) ? BRAND_THEMES[propertyId] : GROUP_THEME;
 }

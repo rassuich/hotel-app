@@ -4,7 +4,7 @@ import { useI18n } from '../../i18n';
 import { useQuery } from '../../lib/hooks';
 import { useGuest } from '../../lib/guest';
 import { useBrand, Wordmark } from '../../lib/theme';
-import { DemoStrip, ErrorNotice, LangSwitch, Loading, OfflineBanner } from '../../components/ui';
+import { DemoStrip, ErrorNotice, LangSwitch, Loading, OfflineBanner, Unreachable } from '../../components/ui';
 import type { GuestNoticeDto, PropertySummary } from '../../../../shared/src/api';
 
 const PropertyCtx = createContext<PropertySummary | null>(null);
@@ -26,7 +26,7 @@ export default function GuestShell() {
   const unread = notices.data?.notices.filter((n) => !n.readAt).length ?? 0;
 
   if (guest.loading) return <Loading />;
-  if (!guest.me) return <Navigate to="/" replace />;
+  if (!guest.me) return guest.unavailable ? <Unreachable onRetry={() => void guest.refresh()} /> : <Navigate to="/" replace />;
   // After checkout only the restricted stay/bill area remains.
   if (!ordering && location.pathname !== '/h/stay') return <Navigate to="/h/stay" replace />;
 

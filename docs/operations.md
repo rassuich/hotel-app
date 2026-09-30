@@ -48,6 +48,11 @@ DATABASE_PATH=/srv/palace/palace.sqlite node dist/server/cli.mjs backup /srv/pal
 Schedule it (e.g. hourly + nightly off-site copy) and prune old files. Backups contain guest
 names and request history: store them encrypted with restricted access.
 
+Also back up **`activation-code.secret`** (created next to the database on first start, mode 0600),
+or set `ACTIVATION_CODE_SECRET` in the environment. It keys the hashes of typed validation codes and
+is deliberately kept outside the database. Without it, restored typed codes no longer validate
+(QR links still do); reception can simply issue new ones.
+
 Restore:
 
 1. Stop the server.
@@ -67,6 +72,16 @@ npm run push:generate-keys   # prints VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY
 Set both keys and `VAPID_SUBJECT` (a mailto: or https: contact) and restart. Guests can then opt in
 from *Mon séjour*. Without keys the app states that notifications are unavailable and relies on
 in-app notices.
+
+## Validation codes and lockout
+
+Each private credential has a QR link and a 12-character typed code. Wrong room answers given with
+a valid credential are counted; after **10** the credential (QR and code) is revoked and the stay
+shows "No active QR" at reception, which issues a new one. Failed attempts are also limited per IP
+(`RATE_LIMIT_ACTIVATION_MAX` per `RATE_LIMIT_WINDOW_MS`); successful validations are not counted.
+
+Printing from **Stays & QR** prints only a guest card (hotel name, QR, code, instructions in
+FR/EN/ES) — never the room number or the in-house list.
 
 ## Staff terminals
 

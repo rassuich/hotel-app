@@ -9,7 +9,11 @@
     "confirm": "Confirmar",
     "offline": "No tiene conexión. Es posible que la información mostrada no esté actualizada. No se pueden enviar solicitudes hasta que se restablezca la conexión.",
     "demoBanner": "Contenido de demostración: los menús, precios, horarios y habitaciones que se muestran son ejemplos, no la información real del hotel.",
-    "skipToContent": "Ir al contenido"
+    "skipToContent": "Ir al contenido",
+    "demo": "Demo",
+    "unreachableEyebrow": "Conexión",
+    "unreachableTitle": "No podemos conectar con el hotel en este momento",
+    "unreachableBody": "Compruebe su conexión. Su estancia sigue activa en este dispositivo y su pedido en curso se conserva; no se enviará nada hasta que vuelva a estar en línea."
   },
   "nav": {
     "home": "Hotel",
@@ -44,9 +48,11 @@
     "upTo": "Hasta {count}",
     "optional": "Opcional",
     "viewOrder": "Ver pedido",
-    "itemsCount": "{count} artículo(s)",
     "emptyMenu": "El menú aún no está disponible.",
-    "optionUnavailable": "no disponible"
+    "optionUnavailable": "no disponible",
+    "itemsCount_one": "{count} artículo",
+    "itemsCount_other": "{count} artículos",
+    "eyebrow": "Room Service"
   },
   "cart": {
     "title": "Su pedido",
@@ -90,9 +96,13 @@
     "eyebrow": "Recepción",
     "selectHelp": "Marque todo lo que necesite y envíelo todo en una sola solicitud.",
     "review": "Revisar solicitud",
-    "selectedCount": "{count} artículo(s)",
     "summaryTitle": "Su solicitud",
-    "notes": "Nota para recepción (opcional)"
+    "notes": "Nota para recepción (opcional)",
+    "selectedCount_one": "{count} artículo",
+    "selectedCount_other": "{count} artículos",
+    "removed": "Ya no disponible(s) y retirado(s) de su solicitud: {items}.",
+    "acceptChanges": "Aceptar la solicitud actualizada",
+    "maxLines": "Puede solicitar hasta {count} artículos distintos a la vez."
   },
   "requests": {
     "title": "Mis solicitudes",
@@ -275,7 +285,6 @@
     "integrations": "Integraciones",
     "pmsManual": "Fuente: registro manual por parte de recepción (sin verificación en tiempo real con el PMS). Registre aquí los cambios de habitación y las salidas de los huéspedes.",
     "pmsLastChange": "Último cambio registrado: {time}",
-    "overdue": "{count} salida(s) con retraso",
     "overdueBadge": "Salida con retraso",
     "checkIn": "Nueva estancia",
     "guestName": "Nombre del huésped / de la reserva",
@@ -286,10 +295,8 @@
     "filter_active": "Alojados",
     "filter_overdue": "Salida con retraso",
     "filter_checked_out": "Salida realizada",
-    "devicesSignedIn": "{count} dispositivo(s)",
     "qrActive": "QR activo",
     "qrNone": "Sin QR activo",
-    "openRequests": "{count} abierta(s)",
     "attention": "{count} por revisar",
     "showQr": "Nuevo QR (reimprimir)",
     "occupantChange": "Cambio de ocupantes",
@@ -367,7 +374,13 @@
     "bodyEs": "Texto (ES)",
     "labelEs": "Etiqueta (ES)",
     "validationCode": "Código de validación",
-    "codeHelp": "Para los huéspedes que no puedan escanear: introducen este código junto con el número de habitación {room}."
+    "codeHelp": "Para los huéspedes que no puedan escanear: introducen este código junto con el número de habitación {room}.",
+    "overdue_one": "{count} salida con retraso",
+    "overdue_other": "{count} salidas con retraso",
+    "devicesSignedIn_one": "{count} dispositivo",
+    "devicesSignedIn_other": "{count} dispositivos",
+    "openRequests_one": "{count} abierta",
+    "openRequests_other": "{count} abiertas"
   },
   "errors": {
     "generic": "Se ha producido un error. Inténtelo de nuevo.",
@@ -452,6 +465,12 @@
     "confirmTitle": "Confirme su habitación",
     "confirmHelp": "Introduzca su número de habitación para terminar. No se mostrará nada hasta que se valide su estancia.",
     "useCodeInstead": "Usar un código de validación",
-    "footer": "Rassuich Hotels & Resorts — reservado a huéspedes registrados."
+    "footer": "Rassuich Hotels & Resorts — reservado a huéspedes registrados.",
+    "switchStay": "Este dispositivo está vinculado actualmente a la habitación {room}. Al validar este código pasará a la nueva estancia."
+  },
+  "print": {
+    "title": "Su aplicación de huésped",
+    "scan": "Escanee el código QR con la cámara de su teléfono.",
+    "code": "O abra {origin} e introduzca este código con su número de habitación."
   }
 }

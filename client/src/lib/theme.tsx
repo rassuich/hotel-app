@@ -8,6 +8,8 @@ const VARS: [keyof BrandTheme, string][] = [
   ['accentTint', '--accent-tint'],
   ['accentText', '--accent-text'],
   ['onAccent', '--on-accent'],
+  ['accentPressed', '--accent-pressed'],
+  ['onAccentDeep', '--on-accent-deep'],
   ['paper', '--paper'],
   ['paperDeep', '--paper-deep'],
   ['card', '--card'],
@@ -21,6 +23,7 @@ export function applyTheme(theme: BrandTheme) {
   const root = document.documentElement;
   for (const [key, cssVar] of VARS) root.style.setProperty(cssVar, String(theme[key]));
   root.dataset.brand = theme.id;
+  document.title = theme.name;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.paper);
 }
 
