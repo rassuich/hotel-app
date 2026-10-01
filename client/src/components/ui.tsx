@@ -4,6 +4,20 @@ import { useOnline } from '../lib/live';
 import { guestSteps, type GuestProgressKey, type RequestType } from '../../../shared/src/states';
 import { LANGS } from '../../../shared/src/api';
 
+const icon = (d: ReactNode) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" strokeLinejoin="miter" aria-hidden="true" focusable="false">
+    {d}
+  </svg>
+);
+/** Line icons for the guest tab bar (always paired with a visible text label). */
+export const Icons = {
+  home: icon(<><path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></>),
+  food: icon(<><path d="M4 15h16" /><path d="M6 15a6 6 0 0 1 12 0" /><path d="M12 7V5" /><path d="M3 18h18" /></>),
+  services: icon(<><path d="M4 7h16v12H4z" /><path d="M8 7V5h8v2" /><path d="M4 12h16" /></>),
+  requests: icon(<><path d="M8 4h8l1 2h2v15H5V6h2z" /><path d="M9 11h6M9 15h4" /></>),
+  stay: icon(<><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></>),
+};
+
 export function Loading() {
   const { t } = useI18n();
   return (

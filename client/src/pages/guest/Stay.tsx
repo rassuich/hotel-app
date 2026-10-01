@@ -70,7 +70,7 @@ export default function Stay() {
           <div className="row" style={{ alignItems: 'baseline' }}>
             <div>
               <span className="label">{t('stay.room')}</span>
-              <div style={{ fontFamily: 'var(--serif)', fontSize: '2rem' }}>{me.roomLabel}</div>
+              <div style={{ fontSize: '2rem', fontWeight: 700 }}>{me.roomLabel}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <span className="label">{t('stay.guest')}</span>

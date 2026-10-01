@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { captureActivationFromUrl } from './lib/activation';
+import '@fontsource-variable/familjen-grotesk/wght.css';
 import './styles.css';
 
 // Must run before anything else so the private token leaves the address bar immediately.

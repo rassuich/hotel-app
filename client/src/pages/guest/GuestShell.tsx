@@ -1,10 +1,10 @@
-import { createContext, useContext } from 'react';
-import { NavLink, Navigate, Outlet, useLocation, Link } from 'react-router-dom';
+import { createContext, useContext, type ReactNode } from 'react';
+import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useI18n } from '../../i18n';
 import { useQuery } from '../../lib/hooks';
 import { useGuest } from '../../lib/guest';
 import { useBrand, Wordmark } from '../../lib/theme';
-import { DemoStrip, ErrorNotice, LangSwitch, Loading, OfflineBanner, Unreachable } from '../../components/ui';
+import { DemoStrip, ErrorNotice, Icons, LangSwitch, Loading, OfflineBanner, Unreachable } from '../../components/ui';
 import type { GuestNoticeDto, PropertySummary } from '../../../../shared/src/api';
 
 const PropertyCtx = createContext<PropertySummary | null>(null);
@@ -31,9 +31,10 @@ export default function GuestShell() {
   if (!ordering && location.pathname !== '/h/stay') return <Navigate to="/h/stay" replace />;
 
   const property = q.data?.property;
-  const tab = (to: string, label: string, end = false, badge = 0) => (
+  const tab = (to: string, label: string, ic: ReactNode, end = false, badge = 0) => (
     <NavLink to={to} end={end} className={({ isActive }) => (isActive ? 'active' : '')}>
-      {label}
+      {ic}
+      <span>{label}</span>
       {badge > 0 && (
         <span className="count" aria-label={`(${badge})`}>
           {badge}
@@ -50,9 +51,7 @@ export default function GuestShell() {
       <header className="masthead">
         <LangSwitch compact />
         <Wordmark theme={theme} href={ordering ? '/h' : '/h/stay'} />
-        <Link to="/h/stay" className="btn-text">
-          {t('nav.stay')}
-        </Link>
+        <span aria-hidden="true" />
       </header>
       <OfflineBanner />
       {property?.hasDemoContent && <DemoStrip />}
@@ -71,10 +70,11 @@ export default function GuestShell() {
       </main>
       {ordering && (
         <nav className="tabbar" aria-label={t('nav.main')}>
-          {tab('/h', t('nav.home'), true)}
-          {tab('/h/food', t('nav.food'))}
-          {tab('/h/services', t('nav.services'))}
-          {tab('/h/requests', t('nav.requests'), false, unread)}
+          {tab('/h', t('nav.home'), Icons.home, true)}
+          {tab('/h/food', t('nav.food'), Icons.food)}
+          {tab('/h/services', t('nav.services'), Icons.services)}
+          {tab('/h/requests', t('nav.requests'), Icons.requests, false, unread)}
+          {tab('/h/stay', t('nav.stay'), Icons.stay)}
         </nav>
       )}
     </div>

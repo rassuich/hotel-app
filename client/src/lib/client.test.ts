@@ -92,8 +92,8 @@ describe('brand themes (Rassuich charter)', () => {
     expect(BRAND_THEMES['palm-plaza'].accent).toBe('#995151');
     expect(BRAND_THEMES['palm-appart-club'].accent).toBe('#ce2b31');
     expect(GROUP_THEME.accent).toBe('#0f2a4a');
-    // Pressed shades are the charter's own wherever cream text already passes.
-    for (const id of ['hotel-suisse', 'palm-plaza', 'palm-appart-club']) expect(BRAND_THEMES[id].accentPressed).toBe(BRAND_THEMES[id].accentDeep);
+    // Where the charter's deep shade already reaches 7:1 with cream it is used as-is for buttons.
+    for (const id of ['hotel-suisse', 'palm-plaza', 'palm-appart-club']) expect(BRAND_THEMES[id].accentStrong).toBe(BRAND_THEMES[id].accentDeep);
   });
   it('meets WCAG AA for button labels, body text, muted text and accent text', () => {
     for (const th of all) {
@@ -101,7 +101,10 @@ describe('brand themes (Rassuich charter)', () => {
       expect(contrast(th.ink, th.paper), `${th.id} ink`).toBeGreaterThanOrEqual(7);
       expect(contrast(th.muted, th.paper), `${th.id} muted`).toBeGreaterThanOrEqual(4.5);
       expect(contrast(th.muted, th.paperDeep), `${th.id} muted on paperDeep`).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(th.onAccentDeep, th.accentPressed), `${th.id} pressed button`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(th.cream, th.accentStrong), `${th.id} button / selected fill (AAA)`).toBeGreaterThanOrEqual(7);
+      expect(contrast(th.cream, th.accentPressed), `${th.id} pressed button`).toBeGreaterThanOrEqual(7);
+      expect(contrast(th.accentText, th.paper), `${th.id} link text (AAA)`).toBeGreaterThanOrEqual(7);
+      expect(contrast(th.muted, th.paper), `${th.id} secondary text`).toBeGreaterThanOrEqual(6);
       expect(contrast(th.ink, th.paperDeep), `${th.id} focus ring`).toBeGreaterThanOrEqual(3);
       expect(contrast(th.accentText, th.paper), `${th.id} accent text`).toBeGreaterThanOrEqual(4.5);
     }

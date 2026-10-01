@@ -164,7 +164,7 @@ export default function Services() {
                 aria-describedby={`svc-${s.id}-price svc-${s.id}-desc`}
                 onChange={() => toggle(s)}
               />
-              <label htmlFor={`svc-${s.id}`} className="title" style={{ margin: 0, letterSpacing: 0, textTransform: 'none', color: 'inherit', fontWeight: 400, minHeight: 44 }}>
+              <label htmlFor={`svc-${s.id}`} className="title" style={{ margin: 0, minHeight: 44, display: 'flex', alignItems: 'center' }}>
                 {l(s.name)}
               </label>
               <span className="tag num" id={`svc-${s.id}-price`}>

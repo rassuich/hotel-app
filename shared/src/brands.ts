@@ -18,6 +18,12 @@ export interface BrandTheme {
   accentText: string;
   /** Text colour on an accent-filled button (charter ink or cream, whichever passes 4.5:1). */
   onAccent: string;
+  /**
+   * The brand hue darkened until cream text on it reaches 7:1 (WCAG AAA). Used for buttons,
+   * links, selected states and anything carrying text. The light charter accent is kept for
+   * decorative rules only.
+   */
+  accentStrong: string;
   /** Pressed/hover button fill: the charter deep shade, darkened minimally only if cream text would fail 4.5:1. */
   accentPressed: string;
   /** Text colour on the pressed/hover button. */
@@ -63,7 +69,7 @@ export function contrast(a: Hex, b: Hex): number {
 /** Darkens `fg` toward `ink` until it reaches `ratio` against `bg`. */
 function readable(fg: Hex, bg: Hex, ink: Hex, ratio = 4.5): Hex {
   let c = fg;
-  for (let t = 0; contrast(c, bg) < ratio && t <= 1; t += 0.05) c = mix(fg, ink, t);
+  for (let t = 0; contrast(c, bg) < ratio && t <= 1; t += 0.02) c = mix(fg, ink, t);
   return c;
 }
 
@@ -83,7 +89,9 @@ interface CharterColours {
 
 function build(c: CharterColours): BrandTheme {
   const onAccent = contrast(c.cream, c.accent) >= 4.5 ? c.cream : c.ink;
-  const accentPressed = readable(c.accentDeep, c.cream, c.ink);
+  const accentStrong = readable(c.accentDeep, c.cream, '#000000', 7);
+  // Pressed state: one step darker than the strong shade.
+  const accentPressed = mix(accentStrong, '#000000', 0.18);
   const onAccentDeep = c.cream;
   const paperDeep = c.paperDeep ?? mix(c.paper, c.ink, 0.05);
   return {
@@ -92,8 +100,9 @@ function build(c: CharterColours): BrandTheme {
     accent: c.accent,
     accentDeep: c.accentDeep,
     accentTint: c.accentTint ?? mix(c.paper, c.accent, 0.1),
-    accentText: readable(c.accentDeep, c.paper, c.ink),
+    accentText: readable(c.accentDeep, c.paper, '#000000', 7),
     onAccent,
+    accentStrong,
     accentPressed,
     onAccentDeep,
     paper: c.paper,
@@ -102,7 +111,7 @@ function build(c: CharterColours): BrandTheme {
     ink: c.ink,
     // Charter "Slate" is kept when readable; otherwise nudged toward ink to reach 4.5:1 for small
     // text on the darkest surface it is used on (paperDeep).
-    muted: readable(c.muted ?? mix(c.ink, c.paper, 0.4), paperDeep, c.ink),
+    muted: readable(c.muted ?? mix(c.ink, c.paper, 0.35), paperDeep, c.ink, 6),
     rule: mix(c.paper, c.ink, 0.16),
     cream: c.cream,
     logo: null,

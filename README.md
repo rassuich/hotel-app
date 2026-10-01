@@ -104,8 +104,10 @@ Production notes (HTTPS, reverse proxy, environment, backup/restore, staff termi
   honest bill area, sign out). Post-stay: ordering and the guide are closed; only the bill area remains.
 - **Brand themes** per hotel from the charter (see `shared/src/brands.ts`): Palace gold, Hôtel
   Suisse navy, Palm Plaza terracotta, Palm Appart Club red; group navy before a hotel is known and
-  for staff fallback. Square geometry, hairline rules, no rounded corners, pills, shadows or gradients.
-  Contrast is checked by tests (button labels, text, muted text ≥ 4.5:1).
+  for staff fallback. Text and button fills use a darkened shade of each brand colour that reaches
+  7:1 (WCAG AAA); the light charter accent is only used for thin decorative lines. Typeface:
+  Familjen Grotesk (self-hosted from npm, works offline). Square corners, filled buttons, boxed
+  fields, 44px+ touch targets, visible focus rings, icon + label tab bar. Contrast is checked by tests.
 - Installable PWA; the service worker caches only the app shell (never guest data or the guide).
   Requests need connectivity; the cart is kept but **never auto-submitted**.
 

@@ -8,6 +8,7 @@ const VARS: [keyof BrandTheme, string][] = [
   ['accentTint', '--accent-tint'],
   ['accentText', '--accent-text'],
   ['onAccent', '--on-accent'],
+  ['accentStrong', '--accent-strong'],
   ['accentPressed', '--accent-pressed'],
   ['onAccentDeep', '--on-accent-deep'],
   ['paper', '--paper'],

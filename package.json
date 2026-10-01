@@ -27,6 +27,7 @@
     "push:generate-keys": "tsx server/src/cli.ts generate-vapid"
   },
   "dependencies": {
+    "@fontsource-variable/familjen-grotesk": "^5.3.0",
     "better-sqlite3": "^12.4.1",
     "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
